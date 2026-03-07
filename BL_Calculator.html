@@ -72,6 +72,35 @@
   .add-btn:hover { background: var(--accent); }
   .intermed-warning { background: #4a3a10; border: 1px solid var(--yellow); border-radius: 8px; padding: 8px 12px; color: #fcd34d; font-size: 0.78rem; margin-top: 6px; }
   .dmso-warning { background: #4a3a10; border: 1px solid var(--yellow); border-radius: 8px; padding: 8px 12px; color: #fcd34d; font-size: 0.78rem; margin-top: 10px; display: none; }
+  /* Batch & Log styles */
+  .batch-card { background: var(--card-alt); border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); position: relative; }
+  .batch-card.expired { border-color: var(--red); opacity: 0.7; }
+  .batch-card.warning { border-color: var(--yellow); }
+  .batch-card .batch-id { font-weight: 700; color: #fff; font-size: 1rem; }
+  .batch-card .batch-meta { font-size: 0.82rem; color: var(--text-dim); margin-top: 6px; line-height: 1.6; }
+  .batch-card .batch-meta strong { color: var(--text); }
+  .vol-bar { height: 8px; border-radius: 4px; background: var(--border); margin-top: 8px; overflow: hidden; }
+  .vol-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .batch-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .batch-actions button { background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); padding: 4px 12px; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .batch-actions button:hover { border-color: var(--accent); color: var(--text); }
+  .age-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; }
+  .age-green { background: #064e3b; color: #6ee7b7; }
+  .age-yellow { background: #713f12; color: #fcd34d; }
+  .age-red { background: #7f1d1d; color: #fca5a5; }
+  .log-entry { background: var(--card-alt); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); font-size: 0.85rem; }
+  .log-entry .log-date { font-weight: 700; color: var(--accent); }
+  .log-entry .log-details { color: var(--text-dim); margin-top: 4px; line-height: 1.6; }
+  .log-entry .log-details strong { color: var(--text); }
+  .sync-bar { display: flex; align-items: center; gap: 10px; background: var(--card-alt); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; border: 1px solid var(--border); font-size: 0.8rem; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .sync-dot.connected { background: var(--green); }
+  .sync-dot.disconnected { background: var(--text-dim); }
+  .sync-dot.error { background: var(--red); }
+  .collapsible-header { cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; }
+  .collapsible-header:hover { color: #fff; }
+  .collapsible-body { overflow: hidden; transition: max-height 0.3s; }
+  .tab-nav { flex-wrap: wrap; }
   @media (max-width: 650px) { .row, .row-3, .row-4, .recipe-grid { grid-template-columns: 1fr; } body { padding: 12px; } .section { padding: 16px; } .tab-nav { flex-direction: column; } }
 </style>
 </head>
@@ -81,9 +110,11 @@
   <p class="subtitle">Lawrence Lab &bull; ECFC Microfluidic Devices &amp; 96-Well Plates</p>
 
   <div class="tab-nav">
-    <button class="tab-btn active" data-tab="dialysis">&#9889; BL Dialysis Prep</button>
-    <button class="tab-btn" data-tab="treatments">&#128200; Sample Setup &amp; Treatments</button>
-    <button class="tab-btn" data-tab="dyes">&#128300; Dye / Probe Addition</button>
+    <button class="tab-btn active" data-tab="dialysis">&#9889; Dialysis</button>
+    <button class="tab-btn" data-tab="treatments">&#128200; Treatments</button>
+    <button class="tab-btn" data-tab="dyes">&#128300; Dyes</button>
+    <button class="tab-btn" data-tab="batches">&#129514; BL Batches</button>
+    <button class="tab-btn" data-tab="log">&#128221; Experiment Log</button>
   </div>
 
   <!-- ========================================================= -->
@@ -582,6 +613,202 @@
 
   </div><!-- /tab-dyes -->
 
+  <!-- ========================================================= -->
+  <!-- TAB 4 : BL DIALYSIS BATCHES                               -->
+  <!-- ========================================================= -->
+  <div class="tab-page" id="tab-batches">
+
+    <!-- SYNC BAR -->
+    <div class="sync-bar" id="syncBar">
+      <span class="sync-dot disconnected" id="syncDot"></span>
+      <span id="syncStatus">Local only &mdash; no Google Sheets connected</span>
+      <div style="margin-left:auto; display:flex; gap:6px;">
+        <button class="toggle-btn" onclick="toggleSyncSettings()" style="padding:4px 10px; font-size:0.75rem;">Settings</button>
+        <button class="toggle-btn" onclick="syncNow()" id="syncBtn" style="padding:4px 10px; font-size:0.75rem; display:none;">Sync Now</button>
+      </div>
+    </div>
+
+    <!-- SYNC SETTINGS (collapsible) -->
+    <div class="section" id="syncSettings" style="display:none;">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--purple);">SYNC</span>
+        <span class="section-title">Google Sheets Integration</span>
+      </div>
+      <div class="section-desc">Connect to a Google Sheet so all lab members share the same batch &amp; experiment data. See instructions below.</div>
+      <div class="row">
+        <div class="field">
+          <label>Google Apps Script Web App URL</label>
+          <input type="text" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..." style="font-family:inherit; font-size:0.85rem;" oninput="saveSheetsUrl()">
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="add-btn" onclick="testConnection()" style="width:auto; padding:8px 16px; font-size:0.82rem;">Test Connection</button>
+        </div>
+      </div>
+      <div id="connectionResult" style="margin-top:8px; font-size:0.82rem;"></div>
+      <hr class="divider">
+      <div class="collapsible-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span style="font-size:0.85rem; font-weight:600; color:var(--text);">&#9660; Setup Instructions (one-time)</span>
+      </div>
+      <div style="display:none; margin-top:10px;">
+        <ol style="color:var(--text-dim); font-size:0.82rem; line-height:2; padding-left:20px;">
+          <li>Create a new Google Sheet (any name, e.g. "BL Lab Tracker")</li>
+          <li>Create two sheets/tabs: rename Sheet1 to <strong style="color:var(--text);">Batches</strong>, add another called <strong style="color:var(--text);">Experiments</strong></li>
+          <li>Go to <strong style="color:var(--text);">Extensions &rarr; Apps Script</strong></li>
+          <li>Delete the placeholder code, paste the script from below, click <strong style="color:var(--text);">Save</strong></li>
+          <li>Click <strong style="color:var(--text);">Deploy &rarr; New deployment</strong></li>
+          <li>Type = <strong style="color:var(--text);">Web app</strong>, Execute as = <strong style="color:var(--text);">Me</strong>, Who has access = <strong style="color:var(--text);">Anyone</strong></li>
+          <li>Click <strong style="color:var(--text);">Deploy</strong>, authorize when prompted, copy the URL</li>
+          <li>Paste the URL above and click <strong style="color:var(--text);">Test Connection</strong></li>
+        </ol>
+        <div style="margin-top:10px;">
+          <button class="add-btn" onclick="copyAppsScript()" style="width:auto; padding:8px 16px; font-size:0.82rem; background:#064e3b; border-color:var(--green);">Copy Apps Script to Clipboard</button>
+          <span id="copyConfirm" style="font-size:0.8rem; color:var(--green); margin-left:10px; display:none;">Copied!</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- REGISTER NEW BATCH -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--green);">NEW</span>
+        <span class="section-title">Register New BL Batch</span>
+      </div>
+      <div class="section-desc">Log a new dialysis batch. Values can be pulled from Tab 1 if filled in, or enter manually.</div>
+      <div class="row-3">
+        <div class="field">
+          <label>Date Dialyzed</label>
+          <input type="date" id="batchDate" style="font-family:inherit;">
+        </div>
+        <div class="field">
+          <label>Stock Concentration</label>
+          <input type="number" id="batchStockConc" value="1000" step="any">
+          <span class="unit">U/mL (pre-dialysis)</span>
+        </div>
+        <div class="field">
+          <label>Dilution Factor</label>
+          <input type="number" id="batchDF" placeholder="from Tab 1" step="any">
+          <span class="unit">&times;</span>
+        </div>
+      </div>
+      <div class="row-3">
+        <div class="field">
+          <label>Post-Filtration Weight (W4)</label>
+          <input type="number" id="batchW4" placeholder="e.g. 1343" step="any">
+          <span class="unit">mg (&asymp; &mu;L initial volume)</span>
+        </div>
+        <div class="field">
+          <label>Post-Dialysis Concentration</label>
+          <input type="number" id="batchPostConc" placeholder="auto from stock/DF" step="any" readonly style="opacity:0.7;">
+          <span class="unit">U/mL</span>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <input type="text" id="batchNotes" placeholder="e.g. 7K cassette, 50mM PB" style="font-family:inherit;">
+        </div>
+      </div>
+      <button class="add-btn" onclick="registerBatch()" style="margin-top:8px; background:#064e3b; border-color:var(--green);">+ Register Batch</button>
+      <button class="toggle-btn" onclick="pullFromTab1()" style="margin-top:8px; font-size:0.78rem;">Pull values from Tab 1</button>
+    </div>
+
+    <!-- ACTIVE BATCHES -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--accent);">ACTIVE</span>
+        <span class="section-title">Active BL Batches</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="toggle-btn active" onclick="setBatchFilter('active')" id="filterActive">Active</button>
+        <button class="toggle-btn" onclick="setBatchFilter('all')" id="filterAll">All</button>
+        <button class="toggle-btn" onclick="setBatchFilter('archived')" id="filterArchived">Archived</button>
+      </div>
+      <div id="batchList"><em style="color:var(--text-dim);">No batches registered yet.</em></div>
+    </div>
+
+  </div><!-- /tab-batches -->
+
+  <!-- ========================================================= -->
+  <!-- TAB 5 : EXPERIMENT LOG                                    -->
+  <!-- ========================================================= -->
+  <div class="tab-page" id="tab-log">
+
+    <!-- LOG NEW EXPERIMENT -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--green);">NEW</span>
+        <span class="section-title">Log Experiment</span>
+      </div>
+      <div class="section-desc">Record BL usage for an experiment. Volume is auto-deducted from the selected batch.</div>
+      <div class="row-3">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="logDate" style="font-family:inherit;">
+        </div>
+        <div class="field">
+          <label>BL Batch</label>
+          <select id="logBatch" onchange="autoCalcLogVol()">
+            <option value="">-- Select batch --</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Experiment Name</label>
+          <input type="text" id="logName" placeholder="e.g. OIR ECFC Plate 3" style="font-family:inherit;">
+        </div>
+      </div>
+      <div class="row-4">
+        <div class="field">
+          <label>96-Well Samples</label>
+          <input type="number" id="logWells" value="0" step="1" oninput="autoCalcLogVol()">
+        </div>
+        <div class="field">
+          <label>Devices</label>
+          <input type="number" id="logDevices" value="0" step="1" oninput="autoCalcLogVol()">
+        </div>
+        <div class="field">
+          <label>BL Volume Used</label>
+          <input type="number" id="logVolUsed" placeholder="auto or manual" step="any">
+          <span class="unit">&mu;L (auto-calculated, override OK)</span>
+        </div>
+        <div class="field">
+          <label>Target BL Conc</label>
+          <input type="number" id="logTargetConc" value="25" step="any" oninput="autoCalcLogVol()">
+          <span class="unit">U/mL</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Drugs / Treatments Used</label>
+          <input type="text" id="logDrugs" placeholder="e.g. FCCP 10µM, Mdivi-1 25µM" style="font-family:inherit;">
+        </div>
+        <div class="field">
+          <label>Dyes Used</label>
+          <input type="text" id="logDyes" placeholder="e.g. TMRE 50nM, MitoTracker 100nM" style="font-family:inherit;">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Notes</label>
+        <input type="text" id="logNotes" placeholder="Any additional notes..." style="font-family:inherit;">
+      </div>
+      <button class="add-btn" onclick="logExperiment()">Log Experiment &amp; Deduct Volume</button>
+    </div>
+
+    <!-- EXPERIMENT HISTORY -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--purple);">HISTORY</span>
+        <span class="section-title">Experiment History</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:space-between;">
+        <div style="display:flex; gap:8px;">
+          <button class="toggle-btn active" onclick="setLogFilter('all')" id="logFilterAll">All</button>
+          <button class="toggle-btn" onclick="setLogFilter('recent')" id="logFilterRecent">Last 30 Days</button>
+        </div>
+        <button class="toggle-btn" onclick="exportCSV()" style="background:#064e3b; border-color:var(--green); color:var(--green);">Export CSV</button>
+      </div>
+      <div id="logList"><em style="color:var(--text-dim);">No experiments logged yet.</em></div>
+    </div>
+
+  </div><!-- /tab-log -->
+
   <p style="text-align:center;color:var(--text-dim);font-size:0.72rem;margin-top:20px;padding-bottom:20px;">Lawrence Lab &bull; BL Dialysis Calculator &bull; Values are estimates &mdash; always verify with your specific batch</p>
 </div>
 
@@ -985,8 +1212,598 @@ function updateDyeSummary() {
   c.innerHTML = html;
 }
 
+/* ====== DATA LAYER (localStorage + Google Sheets) ====== */
+const STORAGE_KEYS = { batches: 'bl_batches', experiments: 'bl_experiments', sheetsUrl: 'bl_sheets_url', nextBatchNum: 'bl_next_batch' };
+
+function loadData(key) {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEYS[key])) || []; } catch(e) { return []; }
+}
+function saveData(key, data) {
+  localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(data));
+}
+
+let batches = loadData('batches');
+let experiments = loadData('experiments');
+let batchFilter = 'active';
+let logFilter = 'all';
+
+function getNextBatchId() {
+  let n = parseInt(localStorage.getItem(STORAGE_KEYS.nextBatchNum)) || 1;
+  localStorage.setItem(STORAGE_KEYS.nextBatchNum, n + 1);
+  return 'BL-' + String(n).padStart(3, '0');
+}
+
+function daysSince(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now - d) / (1000 * 60 * 60 * 24));
+}
+
+function ageBadge(days) {
+  if (days <= 7) return `<span class="age-badge age-green">${days}d</span>`;
+  if (days <= 14) return `<span class="age-badge age-yellow">${days}d</span>`;
+  return `<span class="age-badge age-red">${days}d</span>`;
+}
+
+function volBarColor(pct) {
+  if (pct > 50) return 'var(--green)';
+  if (pct > 20) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+/* ====== BATCH FUNCTIONS ====== */
+function registerBatch() {
+  const date = document.getElementById('batchDate').value;
+  if (!date) return alert('Enter the dialysis date');
+  const stockConc = getVal('batchStockConc') || 1000;
+  const df = getVal('batchDF');
+  const w4 = getVal('batchW4');
+  const notes = document.getElementById('batchNotes').value.trim();
+
+  if (!w4) return alert('Enter W4 (post-filtration weight) — this is the initial volume');
+
+  const postConc = (df && df > 0) ? stockConc / df : null;
+  const batch = {
+    id: getNextBatchId(),
+    date: date,
+    stockConc: stockConc,
+    df: df,
+    postConc: postConc,
+    initialVol: w4,
+    remainingVol: w4,
+    notes: notes,
+    status: 'active',
+    created: new Date().toISOString()
+  };
+
+  batches.unshift(batch);
+  saveData('batches', batches);
+  renderBatches();
+  populateBatchDropdown();
+  syncToSheets('batch', batch);
+
+  // Clear form
+  document.getElementById('batchW4').value = '';
+  document.getElementById('batchDF').value = '';
+  document.getElementById('batchNotes').value = '';
+}
+
+function pullFromTab1() {
+  const df = getDilutionFactor();
+  const sc = getVal('stockConc');
+  const w4 = getVal('w4_filtered');
+  if (df) document.getElementById('batchDF').value = df.toFixed(3);
+  if (sc) document.getElementById('batchStockConc').value = sc;
+  if (w4) document.getElementById('batchW4').value = w4;
+  // Update post conc display
+  if (sc && df) document.getElementById('batchPostConc').value = (sc / df).toFixed(1);
+}
+
+function archiveBatch(id) {
+  const b = batches.find(b => b.id === id);
+  if (b) { b.status = 'archived'; saveData('batches', batches); renderBatches(); populateBatchDropdown(); syncToSheets('batchUpdate', b); }
+}
+
+function reactivateBatch(id) {
+  const b = batches.find(b => b.id === id);
+  if (b) { b.status = 'active'; saveData('batches', batches); renderBatches(); populateBatchDropdown(); syncToSheets('batchUpdate', b); }
+}
+
+function deleteBatch(id) {
+  if (!confirm('Delete batch ' + id + '? This cannot be undone.')) return;
+  batches = batches.filter(b => b.id !== id);
+  experiments = experiments.filter(e => e.batchId !== id);
+  saveData('batches', batches);
+  saveData('experiments', experiments);
+  renderBatches();
+  renderLog();
+  populateBatchDropdown();
+}
+
+function setBatchFilter(f) {
+  batchFilter = f;
+  document.querySelectorAll('#tab-batches .toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('filter' + f.charAt(0).toUpperCase() + f.slice(1)).classList.add('active');
+  renderBatches();
+}
+
+function renderBatches() {
+  const c = document.getElementById('batchList');
+  let filtered = batches;
+  if (batchFilter === 'active') filtered = batches.filter(b => b.status === 'active');
+  else if (batchFilter === 'archived') filtered = batches.filter(b => b.status === 'archived');
+
+  if (!filtered.length) {
+    c.innerHTML = `<em style="color:var(--text-dim);">No ${batchFilter} batches.</em>`;
+    return;
+  }
+
+  let html = '';
+  for (const b of filtered) {
+    const days = daysSince(b.date);
+    const pct = b.initialVol > 0 ? (b.remainingVol / b.initialVol * 100) : 0;
+    const isExpired = days > 14 && b.status === 'active';
+    const isWarning = days > 7 && days <= 14 && b.status === 'active';
+    const cardClass = isExpired ? 'expired' : isWarning ? 'warning' : '';
+
+    // Get usage history for this batch
+    const batchExps = experiments.filter(e => e.batchId === b.id);
+    let usageHtml = '';
+    if (batchExps.length > 0) {
+      usageHtml = '<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);"><div style="font-size:0.78rem; font-weight:600; color:var(--text-dim); margin-bottom:6px;">Usage History:</div>';
+      for (const e of batchExps.slice(0, 5)) {
+        usageHtml += `<div style="font-size:0.75rem; color:var(--text-dim); padding:2px 0;">${e.date} &mdash; ${e.name || 'Experiment'}: <strong style="color:var(--text);">-${e.volUsed.toFixed(0)} &mu;L</strong>${e.drugs ? ' (' + e.drugs + ')' : ''}</div>`;
+      }
+      if (batchExps.length > 5) usageHtml += `<div style="font-size:0.72rem; color:var(--text-dim);">...and ${batchExps.length - 5} more</div>`;
+      usageHtml += '</div>';
+    }
+
+    html += `<div class="batch-card ${cardClass}">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="batch-id">${b.id}</span>
+        ${ageBadge(days)}
+      </div>
+      <div class="batch-meta">
+        <strong>Dialyzed:</strong> ${b.date} (${days} days ago)${isExpired ? ' <span style="color:var(--red); font-weight:700;">&mdash; EXPIRED, consider discarding</span>' : ''}<br>
+        ${b.postConc ? '<strong>Concentration:</strong> ' + b.postConc.toFixed(1) + ' U/mL (DF ' + (b.df ? b.df.toFixed(3) : '?') + '&times;)<br>' : ''}
+        <strong>Volume:</strong> ${b.remainingVol.toFixed(0)} / ${b.initialVol.toFixed(0)} &mu;L remaining (${pct.toFixed(0)}%)
+        ${b.notes ? '<br><strong>Notes:</strong> ' + b.notes : ''}
+      </div>
+      <div class="vol-bar"><div class="vol-bar-fill" style="width:${Math.max(pct,2)}%; background:${volBarColor(pct)};"></div></div>
+      ${usageHtml}
+      <div class="batch-actions">
+        ${b.status === 'active' ? `<button onclick="archiveBatch('${b.id}')">Archive</button>` : `<button onclick="reactivateBatch('${b.id}')">Reactivate</button>`}
+        <button onclick="deleteBatch('${b.id}')" style="border-color:var(--red); color:var(--red);">Delete</button>
+      </div>
+    </div>`;
+  }
+  c.innerHTML = html;
+}
+
+/* ====== EXPERIMENT LOG FUNCTIONS ====== */
+function populateBatchDropdown() {
+  const sel = document.getElementById('logBatch');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- Select batch --</option>';
+  const active = batches.filter(b => b.status === 'active');
+  for (const b of active) {
+    const days = daysSince(b.date);
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = `${b.id} — ${b.remainingVol.toFixed(0)} µL left (${days}d old)`;
+    if (days > 14) opt.style.color = '#fca5a5';
+    sel.appendChild(opt);
+  }
+  if (current) sel.value = current;
+}
+
+function autoCalcLogVol() {
+  const batchId = document.getElementById('logBatch').value;
+  const wells = getVal('logWells') || 0;
+  const devices = getVal('logDevices') || 0;
+  const targetConc = getVal('logTargetConc') || 25;
+  if (!batchId || (wells + devices) === 0) return;
+
+  const batch = batches.find(b => b.id === batchId);
+  if (!batch || !batch.postConc) return;
+
+  // Per well: (targetConc × 200) / postConc = µL BL per well
+  const perWell = (targetConc * 200) / batch.postConc;
+  const perDevice = (targetConc * 200) / batch.postConc;
+  const totalBL = (wells * perWell) + (devices * perDevice);
+  document.getElementById('logVolUsed').value = totalBL.toFixed(1);
+  document.getElementById('logVolUsed').placeholder = totalBL.toFixed(1) + ' µL (auto)';
+}
+
+function logExperiment() {
+  const date = document.getElementById('logDate').value;
+  const batchId = document.getElementById('logBatch').value;
+  const name = document.getElementById('logName').value.trim();
+  const wells = getVal('logWells') || 0;
+  const devices = getVal('logDevices') || 0;
+  const volUsed = getVal('logVolUsed');
+  const targetConc = getVal('logTargetConc') || 25;
+  const drugs = document.getElementById('logDrugs').value.trim();
+  const dyes = document.getElementById('logDyes').value.trim();
+  const notes = document.getElementById('logNotes').value.trim();
+
+  if (!date) return alert('Enter experiment date');
+  if (!batchId) return alert('Select a BL batch');
+  if (!volUsed || volUsed <= 0) return alert('Enter BL volume used');
+
+  // Deduct from batch
+  const batch = batches.find(b => b.id === batchId);
+  if (!batch) return alert('Batch not found');
+
+  if (volUsed > batch.remainingVol) {
+    if (!confirm(`Warning: Using ${volUsed.toFixed(0)} µL but only ${batch.remainingVol.toFixed(0)} µL remaining. Log anyway?`)) return;
+  }
+
+  batch.remainingVol = Math.max(0, batch.remainingVol - volUsed);
+  if (batch.remainingVol <= 0) batch.status = 'archived';
+  saveData('batches', batches);
+
+  const entry = {
+    id: 'EXP-' + Date.now(),
+    date: date,
+    batchId: batchId,
+    name: name || 'Experiment',
+    wells: wells,
+    devices: devices,
+    volUsed: volUsed,
+    targetConc: targetConc,
+    drugs: drugs,
+    dyes: dyes,
+    notes: notes,
+    created: new Date().toISOString()
+  };
+
+  experiments.unshift(entry);
+  saveData('experiments', experiments);
+  renderLog();
+  renderBatches();
+  populateBatchDropdown();
+  syncToSheets('experiment', entry);
+
+  // Clear form
+  document.getElementById('logName').value = '';
+  document.getElementById('logWells').value = '0';
+  document.getElementById('logDevices').value = '0';
+  document.getElementById('logVolUsed').value = '';
+  document.getElementById('logDrugs').value = '';
+  document.getElementById('logDyes').value = '';
+  document.getElementById('logNotes').value = '';
+}
+
+function setLogFilter(f) {
+  logFilter = f;
+  document.getElementById('logFilterAll').classList.toggle('active', f === 'all');
+  document.getElementById('logFilterRecent').classList.toggle('active', f === 'recent');
+  renderLog();
+}
+
+function renderLog() {
+  const c = document.getElementById('logList');
+  let filtered = experiments;
+  if (logFilter === 'recent') {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    filtered = experiments.filter(e => new Date(e.date) >= cutoff);
+  }
+
+  if (!filtered.length) {
+    c.innerHTML = '<em style="color:var(--text-dim);">No experiments logged yet.</em>';
+    return;
+  }
+
+  let html = '';
+  for (const e of filtered) {
+    const batch = batches.find(b => b.id === e.batchId);
+    const batchInfo = batch ? `${e.batchId} (${batch.postConc ? batch.postConc.toFixed(1) + ' U/mL' : '?'})` : e.batchId;
+    html += `<div class="log-entry">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="log-date">${e.date}</span>
+        <button class="remove-btn" onclick="deleteExperiment('${e.id}')" style="font-size:0.7rem; padding:2px 8px;">Delete</button>
+      </div>
+      <div class="log-details">
+        <strong>${e.name || 'Experiment'}</strong> &mdash; Batch: <strong>${batchInfo}</strong><br>
+        ${e.wells > 0 ? e.wells + ' wells' : ''}${e.wells > 0 && e.devices > 0 ? ' + ' : ''}${e.devices > 0 ? e.devices + ' devices' : ''} &mdash; <strong style="color:var(--green);">${e.volUsed.toFixed(1)} &mu;L BL used</strong> @ ${e.targetConc} U/mL
+        ${e.drugs ? '<br>Drugs: ' + e.drugs : ''}
+        ${e.dyes ? '<br>Dyes: ' + e.dyes : ''}
+        ${e.notes ? '<br><em>' + e.notes + '</em>' : ''}
+      </div>
+    </div>`;
+  }
+  c.innerHTML = html;
+}
+
+function deleteExperiment(id) {
+  const exp = experiments.find(e => e.id === id);
+  if (!exp) return;
+  if (!confirm('Delete this experiment entry? The volume will be added back to the batch.')) return;
+
+  // Restore volume to batch
+  const batch = batches.find(b => b.id === exp.batchId);
+  if (batch) {
+    batch.remainingVol = Math.min(batch.initialVol, batch.remainingVol + exp.volUsed);
+    if (batch.status === 'archived' && batch.remainingVol > 0) batch.status = 'active';
+    saveData('batches', batches);
+  }
+
+  experiments = experiments.filter(e => e.id !== id);
+  saveData('experiments', experiments);
+  renderLog();
+  renderBatches();
+  populateBatchDropdown();
+}
+
+function exportCSV() {
+  if (!experiments.length) return alert('No experiments to export');
+  const headers = ['Date', 'Experiment', 'Batch ID', 'Wells', 'Devices', 'BL Vol (µL)', 'Target Conc', 'Drugs', 'Dyes', 'Notes'];
+  let csv = headers.join(',') + '\n';
+  for (const e of experiments) {
+    csv += [
+      e.date,
+      '"' + (e.name || '').replace(/"/g, '""') + '"',
+      e.batchId,
+      e.wells || 0,
+      e.devices || 0,
+      e.volUsed.toFixed(1),
+      e.targetConc || '',
+      '"' + (e.drugs || '').replace(/"/g, '""') + '"',
+      '"' + (e.dyes || '').replace(/"/g, '""') + '"',
+      '"' + (e.notes || '').replace(/"/g, '""') + '"'
+    ].join(',') + '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bl_experiment_log_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+/* ====== GOOGLE SHEETS SYNC ====== */
+function getSheetsUrl() {
+  return localStorage.getItem(STORAGE_KEYS.sheetsUrl) || '';
+}
+
+function saveSheetsUrl() {
+  const url = document.getElementById('sheetsUrl').value.trim();
+  localStorage.setItem(STORAGE_KEYS.sheetsUrl, url);
+  updateSyncUI();
+}
+
+function updateSyncUI() {
+  const url = getSheetsUrl();
+  const dot = document.getElementById('syncDot');
+  const status = document.getElementById('syncStatus');
+  const syncBtn = document.getElementById('syncBtn');
+  if (url) {
+    dot.className = 'sync-dot connected';
+    status.textContent = 'Google Sheets connected';
+    syncBtn.style.display = 'inline-block';
+  } else {
+    dot.className = 'sync-dot disconnected';
+    status.textContent = 'Local only — no Google Sheets connected';
+    syncBtn.style.display = 'none';
+  }
+}
+
+function toggleSyncSettings() {
+  const el = document.getElementById('syncSettings');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function testConnection() {
+  const url = getSheetsUrl();
+  const r = document.getElementById('connectionResult');
+  if (!url) { r.innerHTML = '<span style="color:var(--red);">No URL entered</span>'; return; }
+  r.innerHTML = '<span style="color:var(--text-dim);">Testing...</span>';
+  try {
+    const resp = await fetch(url + '?action=ping');
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      r.innerHTML = '<span style="color:var(--green);">Connected! Sheet: "' + (data.sheetName || 'unknown') + '"</span>';
+      document.getElementById('syncDot').className = 'sync-dot connected';
+      document.getElementById('syncStatus').textContent = 'Google Sheets connected';
+      document.getElementById('syncBtn').style.display = 'inline-block';
+    } else {
+      r.innerHTML = '<span style="color:var(--red);">Connected but got unexpected response: ' + JSON.stringify(data) + '</span>';
+    }
+  } catch(e) {
+    r.innerHTML = '<span style="color:var(--red);">Connection failed: ' + e.message + '</span>';
+    document.getElementById('syncDot').className = 'sync-dot error';
+  }
+}
+
+async function syncToSheets(type, data) {
+  const url = getSheetsUrl();
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: type, data: data })
+    });
+  } catch(e) { console.warn('Sheets sync failed:', e); }
+}
+
+async function syncNow() {
+  const url = getSheetsUrl();
+  if (!url) return;
+  const status = document.getElementById('syncStatus');
+  status.textContent = 'Syncing...';
+  try {
+    // Push all local data
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'fullSync', batches: batches, experiments: experiments })
+    });
+
+    // Pull latest from sheets
+    const resp = await fetch(url + '?action=getData');
+    const data = await resp.json();
+    if (data.batches) { batches = data.batches; saveData('batches', batches); }
+    if (data.experiments) { experiments = data.experiments; saveData('experiments', experiments); }
+
+    renderBatches();
+    renderLog();
+    populateBatchDropdown();
+    status.textContent = 'Synced! Last: ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    status.textContent = 'Sync failed: ' + e.message;
+    document.getElementById('syncDot').className = 'sync-dot error';
+  }
+}
+
+function copyAppsScript() {
+  const script = `// BL Lab Tracker - Google Apps Script
+// Paste this into Extensions > Apps Script in your Google Sheet
+// Deploy as Web App (Execute as: Me, Access: Anyone)
+
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) || 'ping';
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (action === 'ping') {
+    return jsonResponse({ status: 'ok', sheetName: ss.getName() });
+  }
+
+  if (action === 'getData') {
+    var batches = sheetToJson(ss.getSheetByName('Batches'));
+    var experiments = sheetToJson(ss.getSheetByName('Experiments'));
+    return jsonResponse({ batches: batches, experiments: experiments });
+  }
+
+  return jsonResponse({ status: 'unknown action' });
+}
+
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var body = JSON.parse(e.postData.contents);
+  var action = body.action;
+
+  if (action === 'batch') {
+    appendRow(ss.getSheetByName('Batches'), body.data);
+  } else if (action === 'batchUpdate') {
+    updateRow(ss.getSheetByName('Batches'), 'id', body.data.id, body.data);
+  } else if (action === 'experiment') {
+    appendRow(ss.getSheetByName('Experiments'), body.data);
+  } else if (action === 'fullSync') {
+    replaceAll(ss.getSheetByName('Batches'), body.batches || []);
+    replaceAll(ss.getSheetByName('Experiments'), body.experiments || []);
+  }
+
+  return jsonResponse({ status: 'ok' });
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function appendRow(sheet, obj) {
+  if (!sheet) return;
+  var headers = getOrCreateHeaders(sheet, obj);
+  var row = headers.map(function(h) { return obj[h] !== undefined ? obj[h] : ''; });
+  sheet.appendRow(row);
+}
+
+function updateRow(sheet, keyCol, keyVal, obj) {
+  if (!sheet) return;
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 1) return;
+  var headers = data[0];
+  var keyIdx = headers.indexOf(keyCol);
+  if (keyIdx === -1) return;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][keyIdx] == keyVal) {
+      headers.forEach(function(h, j) { if (obj[h] !== undefined) sheet.getRange(i + 1, j + 1).setValue(obj[h]); });
+      return;
+    }
+  }
+  appendRow(sheet, obj);
+}
+
+function replaceAll(sheet, arr) {
+  if (!sheet || !arr || !arr.length) return;
+  sheet.clear();
+  var headers = Object.keys(arr[0]);
+  sheet.appendRow(headers);
+  arr.forEach(function(obj) {
+    sheet.appendRow(headers.map(function(h) { return obj[h] !== undefined ? obj[h] : ''; }));
+  });
+}
+
+function sheetToJson(sheet) {
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var headers = data[0];
+  var result = [];
+  for (var i = 1; i < data.length; i++) {
+    var obj = {};
+    headers.forEach(function(h, j) {
+      var val = data[i][j];
+      if (typeof val === 'number' || (typeof val === 'string' && val !== '' && !isNaN(val))) val = Number(val);
+      obj[h] = val;
+    });
+    result.push(obj);
+  }
+  return result;
+}
+
+function getOrCreateHeaders(sheet, obj) {
+  var data = sheet.getDataRange().getValues();
+  if (data.length === 0 || (data.length === 1 && data[0][0] === '')) {
+    var headers = Object.keys(obj);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return headers;
+  }
+  return data[0];
+}`;
+
+  navigator.clipboard.writeText(script).then(() => {
+    const c = document.getElementById('copyConfirm');
+    c.style.display = 'inline';
+    setTimeout(() => c.style.display = 'none', 3000);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = script;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const c = document.getElementById('copyConfirm');
+    c.style.display = 'inline';
+    setTimeout(() => c.style.display = 'none', 3000);
+  });
+}
+
 /* ====== INIT ====== */
+// Set default dates
+document.getElementById('batchDate').valueAsDate = new Date();
+document.getElementById('logDate').valueAsDate = new Date();
+
+// Restore sheets URL
+const savedUrl = getSheetsUrl();
+if (savedUrl) document.getElementById('sheetsUrl').value = savedUrl;
+updateSyncUI();
+
+// Watch batchDF/batchStockConc to auto-calc postConc
+['batchDF', 'batchStockConc'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    const sc = getVal('batchStockConc') || 1000;
+    const df = getVal('batchDF');
+    document.getElementById('batchPostConc').value = (df && df > 0) ? (sc / df).toFixed(1) : '';
+  });
+});
+
 recalcPlan(); recalcAll();
+renderBatches();
+renderLog();
+populateBatchDropdown();
 </script>
 </body>
 </html>

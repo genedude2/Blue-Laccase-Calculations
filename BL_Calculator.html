@@ -660,6 +660,9 @@
           <li>Click <strong style="color:var(--text);">Deploy</strong>, authorize when prompted, copy the URL</li>
           <li>Paste the URL above and click <strong style="color:var(--text);">Test Connection</strong></li>
         </ol>
+        <div class="protocol-note" style="margin-top:10px;">
+          <strong>Troubleshooting:</strong> If "Test Connection" fails, open your Apps Script URL directly in a new browser tab first. Google may ask you to authorize the script &mdash; click through the "unsafe" warning (this is your own script). After authorizing, come back and try Test Connection again. Also make sure you created <strong>two sheet tabs</strong> named exactly "Batches" and "Experiments".
+        </div>
         <div style="margin-top:10px;">
           <button class="add-btn" onclick="copyAppsScript()" style="width:auto; padding:8px 16px; font-size:0.82rem; background:#064e3b; border-color:var(--green);">Copy Apps Script to Clipboard</button>
           <span id="copyConfirm" style="font-size:0.8rem; color:var(--green); margin-left:10px; display:none;">Copied!</span>
@@ -1594,24 +1597,62 @@ function toggleSyncSettings() {
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
+// Google Apps Script returns a 302 redirect; we need to follow it properly
+async function gsFetch(url, options = {}) {
+  // Never set Content-Type (avoids CORS preflight on the redirect)
+  const resp = await fetch(url, { redirect: 'follow', ...options });
+  return resp;
+}
+
+async function gsGet(url) {
+  const resp = await gsFetch(url);
+  // Apps Script sometimes returns HTML redirect page instead of JSON
+  const text = await resp.text();
+  try { return JSON.parse(text); }
+  catch(e) {
+    // If we got an HTML page, the deployment might need re-authorization
+    if (text.includes('Authorization')) throw new Error('Apps Script needs re-authorization. Open the URL directly in a new tab, authorize, then try again.');
+    if (text.includes('<!DOCTYPE')) throw new Error('Got HTML instead of JSON. Make sure the Apps Script is deployed as Web App with access set to "Anyone".');
+    throw new Error('Invalid response: ' + text.substring(0, 200));
+  }
+}
+
+async function gsPost(url, payload) {
+  // Use no-cors as fallback — we can't read the response but the write goes through
+  try {
+    const resp = await gsFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return resp;
+  } catch(e) {
+    // Fallback: use no-cors mode (write still works, just can't read response)
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify(payload)
+    });
+    return null;
+  }
+}
+
 async function testConnection() {
   const url = getSheetsUrl();
   const r = document.getElementById('connectionResult');
   if (!url) { r.innerHTML = '<span style="color:var(--red);">No URL entered</span>'; return; }
-  r.innerHTML = '<span style="color:var(--text-dim);">Testing...</span>';
+  r.innerHTML = '<span style="color:var(--text-dim);">Testing... (may take a few seconds)</span>';
   try {
-    const resp = await fetch(url + '?action=ping');
-    const data = await resp.json();
+    const data = await gsGet(url + '?action=ping');
     if (data.status === 'ok') {
       r.innerHTML = '<span style="color:var(--green);">Connected! Sheet: "' + (data.sheetName || 'unknown') + '"</span>';
       document.getElementById('syncDot').className = 'sync-dot connected';
       document.getElementById('syncStatus').textContent = 'Google Sheets connected';
       document.getElementById('syncBtn').style.display = 'inline-block';
     } else {
-      r.innerHTML = '<span style="color:var(--red);">Connected but got unexpected response: ' + JSON.stringify(data) + '</span>';
+      r.innerHTML = '<span style="color:var(--yellow);">Connected but got unexpected response: ' + JSON.stringify(data) + '</span>';
     }
   } catch(e) {
-    r.innerHTML = '<span style="color:var(--red);">Connection failed: ' + e.message + '</span>';
+    r.innerHTML = '<span style="color:var(--red);">' + e.message + '</span><br><span style="color:var(--text-dim); font-size:0.78rem;">Tip: Try opening the URL in a new tab first to authorize. Make sure Deploy settings are: Execute as = Me, Access = Anyone.</span>';
     document.getElementById('syncDot').className = 'sync-dot error';
   }
 }
@@ -1620,11 +1661,7 @@ async function syncToSheets(type, data) {
   const url = getSheetsUrl();
   if (!url) return;
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: type, data: data })
-    });
+    await gsPost(url, { action: type, data: data });
   } catch(e) { console.warn('Sheets sync failed:', e); }
 }
 
@@ -1635,15 +1672,10 @@ async function syncNow() {
   status.textContent = 'Syncing...';
   try {
     // Push all local data
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'fullSync', batches: batches, experiments: experiments })
-    });
+    await gsPost(url, { action: 'fullSync', batches: batches, experiments: experiments });
 
     // Pull latest from sheets
-    const resp = await fetch(url + '?action=getData');
-    const data = await resp.json();
+    const data = await gsGet(url + '?action=getData');
     if (data.batches) { batches = data.batches; saveData('batches', batches); }
     if (data.experiments) { experiments = data.experiments; saveData('experiments', experiments); }
 
@@ -1651,6 +1683,7 @@ async function syncNow() {
     renderLog();
     populateBatchDropdown();
     status.textContent = 'Synced! Last: ' + new Date().toLocaleTimeString();
+    document.getElementById('syncDot').className = 'sync-dot connected';
   } catch(e) {
     status.textContent = 'Sync failed: ' + e.message;
     document.getElementById('syncDot').className = 'sync-dot error';

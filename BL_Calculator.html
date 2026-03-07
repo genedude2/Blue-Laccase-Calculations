@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blue Laccase Dialysis &amp; Addition Calculator</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card-alt: #293548;
+    --accent: #3b82f6; --accent-dim: #1e40af;
+    --green: #22c55e; --yellow: #eab308; --red: #ef4444;
+    --text: #e2e8f0; --text-dim: #94a3b8; --border: #334155;
+    --input-bg: #0f172a; --purple: #8b5cf6; --cyan: #06b6d4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px; }
+  .container { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; color: #fff; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 16px; }
+  .tab-nav { display: flex; gap: 4px; margin-bottom: 20px; background: var(--card); border-radius: 12px; padding: 4px; border: 1px solid var(--border); }
+  .tab-btn { flex: 1; padding: 12px 10px; border: none; border-radius: 10px; background: transparent; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .tab-btn.active { background: var(--accent-dim); color: #fff; }
+  .tab-btn:hover:not(.active) { background: var(--card-alt); color: var(--text); }
+  .tab-page { display: none; }
+  .tab-page.active { display: block; }
+  .section { background: var(--card); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; border: 1px solid var(--border); }
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .step-badge { background: var(--accent); color: #fff; font-weight: 700; font-size: 0.75rem; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+  .section-title { font-size: 1.05rem; font-weight: 600; color: #fff; }
+  .section-desc { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 14px; line-height: 1.5; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+  .row-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.78rem; color: var(--text-dim); font-weight: 500; }
+  .field input, .field select { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 0.95rem; font-family: 'SF Mono', 'Fira Code', monospace; outline: none; transition: border-color 0.15s; }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input::placeholder { color: #475569; }
+  .field .unit { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+  .result-box { background: var(--card-alt); border-radius: 10px; padding: 16px 20px; margin-top: 14px; border-left: 3px solid var(--accent); }
+  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .result-row + .result-row { border-top: 1px solid var(--border); }
+  .result-label { font-size: 0.85rem; color: var(--text-dim); }
+  .result-value { font-size: 1rem; font-weight: 600; font-family: 'SF Mono', 'Fira Code', monospace; color: #fff; }
+  .result-value.highlight { color: var(--green); font-size: 1.15rem; }
+  .result-value.warn { color: var(--yellow); }
+  .result-value.error { color: var(--red); }
+  .final-result { background: linear-gradient(135deg, #1e3a5f, #1e293b); border: 1px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin-top: 16px; }
+  .recipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .recipe-card { background: var(--card-alt); border-radius: 10px; padding: 16px; text-align: center; }
+  .recipe-card .val { font-size: 1.4rem; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; color: #fff; }
+  .recipe-card .lbl { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; }
+  .divider { border: none; border-top: 1px dashed var(--border); margin: 14px 0; }
+  .note { font-size: 0.75rem; color: var(--text-dim); margin-top: 8px; line-height: 1.4; font-style: italic; }
+  .protocol-note { background: #1a1a2e; border: 1px solid #334155; border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 14px; }
+  .protocol-note strong { color: var(--text); }
+  .toggle-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .toggle-btn { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; color: var(--text-dim); font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+  .toggle-btn.active { background: var(--accent-dim); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .toggle-btn:hover { border-color: var(--accent); }
+  .batch-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+  .batch-table th { text-align: left; color: var(--text-dim); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .batch-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-family: 'SF Mono', 'Fira Code', monospace; }
+  .batch-table tr:last-child td { border-bottom: none; }
+  .red-warning { padding: 10px 14px; background: #4a1010; border: 2px solid #ef4444; border-radius: 8px; color: #fca5a5; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+  .treatment-row { background: var(--card-alt); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
+  .treatment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .treatment-header .name { font-weight: 700; color: #fff; font-size: 0.95rem; }
+  .remove-btn { background: transparent; border: 1px solid var(--red); border-radius: 6px; color: var(--red); padding: 4px 10px; font-size: 0.75rem; cursor: pointer; }
+  .remove-btn:hover { background: #4a1010; }
+  .add-btn { background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 8px; color: #fff; padding: 10px 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; width: 100%; }
+  .add-btn:hover { background: var(--accent); }
+  .intermed-warning { background: #4a3a10; border: 1px solid var(--yellow); border-radius: 8px; padding: 8px 12px; color: #fcd34d; font-size: 0.78rem; margin-top: 6px; }
+  .dmso-warning { background: #4a3a10; border: 1px solid var(--yellow); border-radius: 8px; padding: 8px 12px; color: #fcd34d; font-size: 0.78rem; margin-top: 10px; display: none; }
+  @media (max-width: 650px) { .row, .row-3, .row-4, .recipe-grid { grid-template-columns: 1fr; } body { padding: 12px; } .section { padding: 16px; } .tab-nav { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Blue Laccase Dialysis & Addition Calculator</h1>
+  <p class="subtitle">Lawrence Lab &bull; ECFC Microfluidic Devices &amp; 96-Well Plates</p>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="dialysis">&#9889; BL Dialysis Prep</button>
+    <button class="tab-btn" data-tab="treatments">&#128200; Sample Setup &amp; Treatments</button>
+    <button class="tab-btn" data-tab="dyes">&#128300; Dye / Probe Addition</button>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- TAB 1 : BL DIALYSIS PREP                                  -->
+  <!-- ========================================================= -->
+  <div class="tab-page active" id="tab-dialysis">
+
+    <!-- HANDLING & BEST PRACTICES (first!) -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--red);">IMPORTANT</span>
+        <span class="section-title">BL Handling, Storage &amp; Best Practices</span>
+      </div>
+      <div class="red-warning">&#9888; STERILE FILTER BL IMMEDIATELY AFTER DIALYSIS. DO NOT DELAY.</div>
+      <div style="background:var(--card-alt); border-radius:10px; padding:16px; margin-bottom:16px; border:1px solid var(--border);">
+        <div style="font-weight:700; color:var(--green); margin-bottom:10px; font-size:0.95rem;">&#10003; What Actually Matters</div>
+        <ul style="color:var(--text-dim); font-size:0.82rem; line-height:1.8; padding-left:18px;">
+          <li><strong style="color:var(--text);">Sterile filter immediately after dialysis.</strong> Unfiltered BL at 4&deg;C grows bacteria whose proteases degrade laccase far faster than any other factor.</li>
+          <li><strong style="color:var(--text);">Weigh for dilution factor, don't eyeball.</strong> Eyeballing is &plusmn;30-50% error. Weighing gets you within a few percent.</li>
+          <li><strong style="color:var(--text);">Use dialyzed BL within ~2 weeks.</strong> At 3-5 weeks you may lose 10-30% activity &mdash; a hidden variable between experiments.</li>
+          <li><strong style="color:var(--text);">Dialyze smaller, more frequent batches.</strong> ~2-week supply, toss any remainder.</li>
+        </ul>
+      </div>
+      <div style="background:var(--card-alt); border-radius:10px; padding:16px; margin-bottom:16px; border:1px solid var(--border);">
+        <div style="font-weight:700; color:var(--text-dim); margin-bottom:10px; font-size:0.95rem;">&#8776; Probably Doesn't Matter Much</div>
+        <ul style="color:var(--text-dim); font-size:0.82rem; line-height:1.8; padding-left:18px;">
+          <li><strong style="color:var(--text);">Fridge light:</strong> Studies showing &gt;50% inactivation used direct UV (254 nm). Fridge LEDs for seconds = negligible.</li>
+          <li><strong style="color:var(--text);">30-60 min at RT in the hood:</strong> Laccase is robust. RT is easier to pipette. Only worry at 4+ hours.</li>
+          <li><strong style="color:var(--text);">Ice in the hood:</strong> Not necessary for typical sessions.</li>
+        </ul>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:var(--card-alt); border-radius:10px; padding:16px; border:1px solid var(--border);">
+          <div style="font-weight:700; color:#fff; margin-bottom:10px; font-size:0.95rem;">&#10052; Stock BL (50% glycerol)</div>
+          <ul style="color:var(--text-dim); font-size:0.82rem; line-height:1.8; padding-left:18px;">
+            <li>Pipette <strong style="color:var(--text);">in the hood</strong></li>
+            <li>Thaw on ice, work quickly</li>
+            <li><strong style="color:var(--text);">Parafilm lid</strong> before returning to -20&deg;C</li>
+            <li>Avoid repeated freeze-thaw &mdash; aliquot if needed</li>
+          </ul>
+        </div>
+        <div style="background:var(--card-alt); border-radius:10px; padding:16px; border:1px solid var(--border);">
+          <div style="font-weight:700; color:#fff; margin-bottom:10px; font-size:0.95rem;">&#9889; Dialyzed Sterile BL</div>
+          <ul style="color:var(--text-dim); font-size:0.82rem; line-height:1.8; padding-left:18px;">
+            <li><strong style="color:#fca5a5;">Filter immediately</strong> (0.22 &mu;m)</li>
+            <li>Store at <strong style="color:var(--text);">4&deg;C</strong> &mdash; do NOT freeze (no cryoprotectant)</li>
+            <li>Use within <strong style="color:var(--text);">~2 weeks</strong></li>
+            <li>RT in the hood for ~1 hr is fine</li>
+            <li>Do NOT add glycerol back &mdash; carries over to cells</li>
+          </ul>
+        </div>
+      </div>
+      <div style="background:var(--card-alt); border-radius:10px; padding:16px; margin-top:16px; border:1px solid var(--border);">
+        <div style="font-weight:700; color:#fff; margin-bottom:8px; font-size:0.95rem;">&#128218; Recommended Workflow</div>
+        <div style="color:var(--text-dim); font-size:0.82rem; line-height:1.7;">
+          <strong style="color:var(--text);">Dialyze overnight</strong> (300-500 &mu;L stock for ~2 wks) &rarr; <strong style="color:var(--text);">sterile filter next morning</strong> &rarr; weigh for DF &rarr; store 4&deg;C &rarr; use within 2 wks &rarr; toss leftover.
+        </div>
+      </div>
+    </div>
+
+    <!-- BATCH PLANNING -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--purple);">PLAN</span>
+        <span class="section-title">2-Week Batch Planning &amp; Cassette Selection</span>
+      </div>
+      <div class="section-desc">Estimate stock to dialyze for ~2 weeks. 7K MWCO dialyzes glycerol fastest; both retain laccase (~68 kDa).</div>
+      <div class="row-3">
+        <div class="field"><label>96-Well Samples (2 wks)</label><input type="number" id="plan_wells" value="20" step="1" oninput="recalcPlan()"><span class="unit">total wells</span></div>
+        <div class="field"><label>Devices (2 wks)</label><input type="number" id="plan_devices" value="0" step="1" oninput="recalcPlan()"><span class="unit">total devices (200 &mu;L ea)</span></div>
+        <div class="field"><label>Target BL Conc</label><input type="number" id="plan_targetConc" value="25" step="any" oninput="recalcPlan()"><span class="unit">U/mL</span></div>
+      </div>
+      <div class="row-3">
+        <div class="field"><label>Stock Concentration</label><input type="number" id="plan_stockConc" value="1000" step="any" oninput="recalcPlan()"><span class="unit">U/mL</span></div>
+        <div class="field"><label>Expected DF</label><input type="number" id="plan_df" value="1.6" step="any" oninput="recalcPlan()"><span class="unit">&times; (planning estimate &mdash; actual from Step 2)</span></div>
+        <div class="field"><label>Filter + Dead Vol Loss</label><input type="number" id="plan_loss" value="20" step="1" oninput="recalcPlan()"><span class="unit">% (~10-20%)</span></div>
+      </div>
+      <div class="result-box">
+        <div class="result-row"><span class="result-label">Dialyzed BL Needed</span><span class="result-value" id="plan_blNeeded">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Before Losses</span><span class="result-value" id="plan_blWithLoss">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Stock to Dialyze</span><span class="result-value highlight" id="plan_stockVol">&mdash;</span></div>
+        <hr class="divider">
+        <div class="result-row"><span class="result-label" style="font-weight:700;color:var(--text);">Recommended Cassette</span><span class="result-value highlight" id="plan_cassette">&mdash;</span></div>
+        <div id="plan_cassetteDetail" style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);line-height:1.6;"></div>
+      </div>
+      <div style="background:var(--card-alt); border-radius:10px; padding:14px; margin-top:14px; border:1px solid var(--border); font-size:0.8rem; color:var(--text-dim); line-height:1.6;">
+        <strong style="color:#fff;">Cassettes:</strong><br>
+        <span style="color:var(--accent);">&#9632;</span> <strong>Prod# 66373</strong> &mdash; 7K MWCO, 0.1&ndash;0.5 mL &mdash; <em>fastest, ideal for small 2-wk batches</em><br>
+        <span style="color:var(--yellow);">&#9632;</span> <strong>Prod# 66330</strong> &mdash; 3.5K MWCO, 0.5&ndash;3.0 mL &mdash; <em>for batches &gt;500 &mu;L stock</em>
+      </div>
+    </div>
+
+    <!-- BUFFER RECIPE -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:#f59e0b;">REF</span>
+        <span class="section-title">Dialysis Buffer Recipe</span>
+      </div>
+      <div class="red-warning">&#9888; USE MILIQ WATER ONLY. DO NOT USE DI WATER FOR DIALYSIS BUFFER.</div>
+      <div class="row">
+        <div class="field"><label>Buffer Volume</label><input type="number" id="bufferVol" value="1000" step="any" oninput="recalcBuffer()"><span class="unit">mL</span></div>
+        <div class="field" style="justify-content:center;"><span class="unit" style="margin-top:20px;">50 mM phosphate buffer, ~pH 6.3</span></div>
+      </div>
+      <div class="result-box">
+        <div class="result-row"><span class="result-label">NaH&#8322;PO&#8324;&middot;H&#8322;O (monobasic, CAS 10049-21-5)</span><span class="result-value" id="monobasic">6.098 g</span></div>
+        <div class="result-row"><span class="result-label">Na&#8322;HPO&#8324; (dibasic anhydrous, CAS 7558-79-4)</span><span class="result-value" id="dibasic">825.0 mg</span></div>
+        <div class="result-row"><span class="result-label">milliQ Water</span><span class="result-value" id="bufferWater">to 1000 mL</span></div>
+      </div>
+      <p class="note">Use the dialysis buoy (NOT the metal clip). Stir gently overnight at 4&deg;C.<br><em>Note: yields ~pH 6.3 (not exactly 6.0), but this is what we've been using and it works.</em></p>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="section">
+      <div class="section-header"><span class="step-badge">STEP 1</span><span class="section-title">BL Stock Information</span></div>
+      <div class="row">
+        <div class="field"><label>Stock Concentration</label><input type="number" id="stockConc" value="1000" step="any" oninput="recalcAll()"><span class="unit">U/mL (in 50% glycerol)</span></div>
+        <div class="field"><label>Volume Pipetted into Cassette</label><input type="number" id="volPipetted" value="500" step="any" oninput="recalcAll()"><span class="unit">&mu;L</span></div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="section">
+      <div class="section-header"><span class="step-badge">STEP 2</span><span class="section-title">Dialysis Cassette Weights</span></div>
+      <div class="protocol-note">
+        <strong>Protocol:</strong> Pre-wet cassette 1-2 min. Dab dry. <strong>Tare</strong> &rarr; inject BL &rarr; <strong>W1</strong>. Zero scale &rarr; weigh cassette+BL &rarr; <strong>W2</strong>. Dialyze overnight 4&deg;C. Pat dry &rarr; zero &rarr; weigh &rarr; <strong>W3</strong>.
+      </div>
+      <div class="row-3">
+        <div class="field"><label>W1: BL Mass (tarred cassette)</label><input type="number" id="w1_bl" placeholder="e.g. 510" step="any" oninput="recalcAll()"><span class="unit">mg</span></div>
+        <div class="field"><label>W2: Cassette+BL Pre-Dialysis</label><input type="number" id="w2_pre" placeholder="e.g. 3360" step="any" oninput="recalcAll()"><span class="unit">mg (zeroed scale)</span></div>
+        <div class="field"><label>W3: Cassette+BL Post-Dialysis</label><input type="number" id="w3_post" placeholder="e.g. 4176" step="any" oninput="recalcAll()"><span class="unit">mg (zeroed scale, next day)</span></div>
+      </div>
+      <div class="protocol-note" style="margin-top:8px;margin-bottom:0;">
+        <strong>Math:</strong> Mass change = W3−W2 (cassette cancels). Total post = W1 + (W3−W2). DF = total/W1. <em>50% glycerol ~1.13 g/mL so mass-based DF slightly underestimates volume dilution (~10-13%). Conservative.</em>
+      </div>
+      <div class="result-box">
+        <div class="result-row"><span class="result-label">BL Injected</span><span class="result-value" id="blInjected">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Mass Change</span><span class="result-value" id="massIncrease">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Total BL Post-Dialysis</span><span class="result-value" id="totalPostDialysis">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Dilution Factor</span><span class="result-value highlight" id="dilutionFactor">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Post-Dialysis Conc</span><span class="result-value" id="postDialysisConc">&mdash;</span></div>
+      </div>
+    </div>
+
+    <!-- STEP 2B -->
+    <div class="section">
+      <div class="section-header"><span class="step-badge">STEP 2B</span><span class="section-title">Sterile Filtration &amp; Recovery</span></div>
+      <div class="protocol-note">
+        Extract BL via syringe. In hood, filter through <strong>0.22 &mu;m</strong> into <strong>tarred</strong> eppendorf. Cap. Weigh.
+        <div class="red-warning" style="margin-top:10px;margin-bottom:0;">&#9888; KEEP TUBE CAPPED AND STERILE DURING WEIGHING. DO NOT OPEN OUTSIDE HOOD.</div>
+      </div>
+      <div class="row">
+        <div class="field"><label>W4: Filtered BL in Tarred Eppendorf</label><input type="number" id="w4_filtered" placeholder="e.g. 1343" step="any" oninput="recalcAll()"><span class="unit">mg</span></div>
+      </div>
+      <div class="result-box">
+        <div class="result-row"><span class="result-label">Recovered</span><span class="result-value" id="filteredBL">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Recovery %</span><span class="result-value" id="recoveryPct">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Lost</span><span class="result-value" id="filtrationLoss">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">DF (unchanged)</span><span class="result-value highlight" id="adjDilutionFactor">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">Post-Filtration Conc</span><span class="result-value" id="adjPostConc">&mdash;</span></div>
+      </div>
+    </div>
+
+  </div><!-- /tab-dialysis -->
+
+  <!-- ========================================================= -->
+  <!-- TAB 2 : SAMPLE SETUP & TREATMENTS (BL + Drugs)            -->
+  <!-- ========================================================= -->
+  <div class="tab-page" id="tab-treatments">
+
+    <!-- BL ADDITION -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--green);">BL</span>
+        <span class="section-title">BL Addition to Samples</span>
+      </div>
+      <div class="section-desc">C1&times;V1 = C2&times;V<sub>total</sub>&times;DF. Uses weights from Tab 1, or enter manual DF.</div>
+      <label style="font-size:0.78rem;color:var(--text-dim);font-weight:500;margin-bottom:6px;display:block;">Sample Format</label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="setFormat('96well')" id="btn-96well">96-Well Plate</button>
+        <button class="toggle-btn" onclick="setFormat('device-reservoir')" id="btn-device-reservoir">Device (via Reservoirs)</button>
+        <button class="toggle-btn" onclick="setFormat('custom')" id="btn-custom">Custom</button>
+      </div>
+      <div class="row">
+        <div class="field"><label>Volume per Sample</label><input type="number" id="volPerSample" value="200" step="any" oninput="recalcAll()"><span class="unit" id="volPerSampleNote">&mu;L (total: media + BL per well)</span></div>
+        <div class="field"><label>Target BL Concentration</label><input type="number" id="targetConc" value="25" step="any" oninput="recalcAll()"><span class="unit">U/mL final</span></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Number of BL Samples</label><input type="number" id="nSamples" value="3" step="1" oninput="recalcAll()"><span class="unit">wells or devices getting BL</span></div>
+        <div class="field"><label>Extra Volume (Overage)</label><input type="number" id="extraVol" value="150" step="any" oninput="recalcAll()"><span class="unit">&mu;L</span></div>
+      </div>
+      <hr class="divider">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Manual DF Override (optional)</label>
+        <input type="number" id="manualDF" placeholder="Leave blank to use Tab 1 weights" step="any" oninput="recalcAll()">
+      </div>
+      <div class="result-box">
+        <div class="result-row"><span class="result-label">Total BL-Media Volume</span><span class="result-value" id="totalVolNeeded">&mdash;</span></div>
+        <div class="result-row"><span class="result-label">DF Used</span><span class="result-value" id="dfUsed">&mdash;</span></div>
+      </div>
+    </div>
+
+    <!-- BL RESULT -->
+    <div class="final-result" id="finalSection">
+      <div class="section-header" style="margin-bottom:12px;">
+        <span class="step-badge" style="background:var(--green);">RESULT</span>
+        <span class="section-title">BL Addition Recipe</span>
+      </div>
+      <div id="formulaDisplay" style="font-family:'SF Mono','Fira Code',monospace;font-size:0.85rem;color:var(--text-dim);margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px;"></div>
+      <div class="recipe-grid">
+        <div class="recipe-card"><div class="val" id="blToAdd">&mdash;</div><div class="lbl">Dialyzed BL (&mu;L)</div></div>
+        <div class="recipe-card"><div class="val" id="mediaToAdd">&mdash;</div><div class="lbl">Media (&mu;L)</div></div>
+        <div class="recipe-card"><div class="val" id="totalMix">&mdash;</div><div class="lbl">Total Mix (&mu;L)</div></div>
+        <div class="recipe-card"><div class="val" id="perSampleBL">&mdash;</div><div class="lbl">BL per sample (&mu;L)</div></div>
+      </div>
+      <p class="note" id="pipetteNote" style="margin-top:14px;"></p>
+    </div>
+
+    <!-- BATCH TABLE -->
+    <div class="section" style="margin-top:16px;">
+      <div class="section-header"><span class="step-badge" style="background:var(--purple);">BATCH</span><span class="section-title">Quick Reference</span></div>
+      <table class="batch-table"><thead><tr><th>Samples</th><th>Total Vol</th><th>BL (&mu;L)</th><th>Media (&mu;L)</th><th>BL/sample</th></tr></thead><tbody id="batchBody"></tbody></table>
+    </div>
+
+    <!-- DRUG / INHIBITOR ADDITION -->
+    <div class="section" style="margin-top:16px;">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--red);">DRUGS</span>
+        <span class="section-title">Drug / Inhibitor Addition</span>
+      </div>
+      <div class="section-desc">Add drugs to <strong>control media (no BL)</strong> and/or <strong>media containing BL</strong>. Select compound, enter concentrations, and specify how many wells of each condition.</div>
+
+      <div class="row">
+        <div class="field">
+          <label>Select Drug / Inhibitor</label>
+          <select id="drugSelect">
+            <option value="">-- Choose --</option>
+            <optgroup label="Mitochondrial / Metabolic">
+              <option value="FCCP">FCCP (uncoupler)</option>
+              <option value="Oligomycin">Oligomycin (ATP synthase inh.)</option>
+              <option value="Mdivi-1">Mdivi-1 (DRP1/fission inh.)</option>
+              <option value="2-DG">2-DG (glycolysis inh.)</option>
+            </optgroup>
+            <optgroup label="Signaling / Kinase">
+              <option value="H-89">H-89 (PKA inh.)</option>
+              <option value="Forskolin">Forskolin (cAMP/PKA)</option>
+              <option value="PDK4-IN-1">PDK4-IN-1</option>
+              <option value="Defactinib">Defactinib (FAK inh.)</option>
+              <option value="Verteporfin">Verteporfin (YAP/TAZ inh.)</option>
+            </optgroup>
+            <optgroup label="Autophagy / Lysosome">
+              <option value="Bafilomycin A1">Bafilomycin A1</option>
+              <option value="Hydroxychloroquine">Hydroxychloroquine</option>
+            </optgroup>
+            <optgroup label="Cell Death">
+              <option value="Z-VAD-FMK">Z-VAD-FMK (pan-caspase)</option>
+              <option value="Q-VD-OPh">Q-VD-OPh (apoptosis inh.)</option>
+              <option value="Liproxstatin-1">Liproxstatin-1 (ferroptosis inh.)</option>
+              <option value="Erastin">Erastin (SLC7A11 / ferroptosis)</option>
+            </optgroup>
+            <optgroup label="Antioxidant">
+              <option value="L-Glutathione">L-Glutathione</option>
+              <option value="N-Acetylcysteine">N-Acetylcysteine (NAC)</option>
+            </optgroup>
+            <optgroup label="Vascular / Endothelin">
+              <option value="Bosentan">Bosentan (EDN1 inh.)</option>
+              <option value="Ambrisentan">Ambrisentan (ET-A antag.)</option>
+              <option value="Tivozanib">Tivozanib (VEGFR inh.)</option>
+              <option value="GM6001">GM6001 (MMP inh.)</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="Misoprostol">Misoprostol</option>
+              <option value="Custom Drug">Custom (enter below)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field"><label>Custom Name</label><input type="text" id="drugCustomName" placeholder="if Custom selected" style="font-family:inherit;"></div>
+      </div>
+      <div class="row-4">
+        <div class="field"><label>Stock Concentration</label><input type="number" id="drugStockConc" placeholder="e.g. 10" step="any"></div>
+        <div class="field"><label>Stock Unit</label><select id="drugStockUnit"><option value="mM">mM</option><option value="uM">&mu;M</option><option value="mg/mL">mg/mL</option></select></div>
+        <div class="field"><label>Dissolved In</label><select id="drugSolvent"><option value="DMSO">DMSO</option><option value="Water">Water</option><option value="Ethanol">Ethanol</option><option value="Media">Media</option><option value="PBS">PBS</option></select></div>
+        <div class="field"><label>Desired Final Conc</label><input type="number" id="drugFinalConc" placeholder="e.g. 10" step="any"><span class="unit" id="drugFinalUnit">&mu;M</span></div>
+      </div>
+      <div class="row-3">
+        <div class="field"><label>Final Conc Unit</label><select id="drugFinalConcUnit" onchange="document.getElementById('drugFinalUnit').textContent=this.value.replace('u','µ')"><option value="uM">&mu;M</option><option value="nM">nM</option><option value="mM">mM</option><option value="ug/mL">&mu;g/mL</option></select></div>
+        <div class="field"><label>Wells with BL + Drug</label><input type="number" id="drugNBL" value="3" step="1"><span class="unit">BL-containing condition</span></div>
+        <div class="field"><label>Wells with Control + Drug</label><input type="number" id="drugNCtrl" value="3" step="1"><span class="unit">no-BL control condition</span></div>
+      </div>
+
+      <!-- DRUG INTERMEDIATE DILUTION -->
+      <hr class="divider">
+      <div style="background:var(--card-alt); border-radius:10px; padding:14px 16px; margin-bottom:12px; border:1px solid var(--border);">
+        <div style="font-weight:700; color:#fff; margin-bottom:10px; font-size:0.9rem;">&#128257; Intermediate Dilution Step (optional)</div>
+        <div class="section-desc" style="margin-bottom:10px;">If stock is very concentrated relative to target, make an intermediate dilution. <strong>Recommended: 1:1000</strong> (1 &mu;L stock into 999 &mu;L diluent).</div>
+        <div class="row-3">
+          <div class="field">
+            <label>Use Intermediate?</label>
+            <select id="drugUseIntermed" onchange="recalcDrugIntermed()">
+              <option value="no">No (direct from stock)</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Dilution Ratio</label>
+            <select id="drugIntermedRatio" onchange="recalcDrugIntermed()">
+              <option value="1000" selected>1:1000 (recommended)</option>
+              <option value="100">1:100</option>
+              <option value="10">1:10</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Diluent</label>
+            <select id="drugIntermedDiluent">
+              <option value="PBS" selected>PBS</option>
+              <option value="Media">Media</option>
+              <option value="Water">Water</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="drugIntermedCustomRow" style="display:none;">
+          <div class="field">
+            <label>Custom Ratio (1:X)</label>
+            <input type="number" id="drugIntermedCustom" value="500" step="1" oninput="recalcDrugIntermed()">
+          </div>
+          <div class="field">
+            <label>Stock Vol for Intermediate</label>
+            <input type="number" id="drugIntermedStockVol" value="1" step="any" oninput="recalcDrugIntermed()">
+            <span class="unit">&mu;L of stock</span>
+          </div>
+        </div>
+        <div class="row" id="drugIntermedFixedRow" style="display:none;">
+          <div class="field">
+            <label>Stock Vol for Intermediate</label>
+            <input type="number" id="drugIntermedStockVolFixed" value="1" step="any" oninput="recalcDrugIntermed()">
+            <span class="unit">&mu;L of stock</span>
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="result-box" id="drugIntermedResult" style="display:none; margin-top:10px;">
+          <div class="result-row"><span class="result-label">Intermediate Concentration</span><span class="result-value" id="drugIntermedConc">&mdash;</span></div>
+          <div class="result-row"><span class="result-label">Recipe</span><span class="result-value" id="drugIntermedRecipe" style="font-size:0.85rem;">&mdash;</span></div>
+          <div class="result-row"><span class="result-label">Total Intermediate Volume</span><span class="result-value" id="drugIntermedTotalVol">&mdash;</span></div>
+        </div>
+      </div>
+
+      <button class="add-btn" onclick="addDrug()" style="margin-top:8px;">+ Add Drug to Treatment Plan</button>
+      <div id="drugList" style="margin-top:16px;"></div>
+      <div class="dmso-warning" id="dmsoWarning"></div>
+    </div>
+
+    <!-- TREATMENT SUMMARY -->
+    <div class="section" style="margin-top:16px;">
+      <div class="section-header"><span class="step-badge" style="background:var(--green);">SUMMARY</span><span class="section-title">Treatment Plan Summary</span></div>
+      <div id="treatmentSummary"><em>Add drugs above to see combined treatment plan.</em></div>
+    </div>
+
+  </div><!-- /tab-treatments -->
+
+  <!-- ========================================================= -->
+  <!-- TAB 3 : DYE / PROBE ADDITION                              -->
+  <!-- ========================================================= -->
+  <div class="tab-page" id="tab-dyes">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--cyan);">INFO</span>
+        <span class="section-title">Dye / Probe Loading</span>
+      </div>
+      <div class="section-desc">
+        Dyes are typically added at a later timepoint for live imaging &mdash; not at t=0 with BL. Prepare dye solutions in <strong>phenol red-free imaging media</strong> (or your preferred low-background media). The calculator accounts for intermediate dilutions when volumes are impractically small.
+      </div>
+      <div class="row">
+        <div class="field"><label>Imaging Media Volume per Well/Device</label><input type="number" id="dyeVolPerSample" value="200" step="any" oninput="recalcDyeList()"><span class="unit">&mu;L (phenol red-free media)</span></div>
+        <div class="field"><label>Number of Wells / Devices</label><input type="number" id="dyeNSamples" value="10" step="1" oninput="recalcDyeList()"><span class="unit">total to stain</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--cyan);">ADD</span>
+        <span class="section-title">Select Dye</span>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Dye / Probe</label>
+          <select id="dyeSelect">
+            <option value="">-- Choose --</option>
+            <optgroup label="Mitochondrial">
+              <option value="MitoTracker Deep Red">MitoTracker Deep Red (M22426)</option>
+              <option value="MitoSox Red">MitoSox Red (M36008)</option>
+              <option value="TMRE">TMRE (T669)</option>
+            </optgroup>
+            <optgroup label="Calcium">
+              <option value="Calbryte 520 AM">Calbryte 520 AM</option>
+            </optgroup>
+            <optgroup label="Viability / General">
+              <option value="CellTracker">CellTracker</option>
+              <option value="Calcein AM">Calcein AM (C1430)</option>
+              <option value="2-NBDG">2-NBDG (glucose uptake)</option>
+            </optgroup>
+            <optgroup label="ROS / Lipid Peroxidation">
+              <option value="BODIPY 581/591 C11">BODIPY C11 (Lipid Perox.)</option>
+              <option value="DAF-FM">DAF-FM (NO)</option>
+            </optgroup>
+            <optgroup label="Iron / Lysosome">
+              <option value="FerroOrange">FerroOrange (iron, 36104S)</option>
+              <option value="LysoTracker Deep Red">LysoTracker Deep Red</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="Custom Dye">Custom (enter below)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field"><label>Custom Name</label><input type="text" id="dyeCustomName" placeholder="if Custom selected" style="font-family:inherit;"></div>
+      </div>
+      <div class="row-4">
+        <div class="field"><label>Stock Concentration</label><input type="number" id="dyeStockConc" placeholder="e.g. 5" step="any"></div>
+        <div class="field"><label>Stock Unit</label><select id="dyeStockUnit"><option value="mM">mM</option><option value="uM">&mu;M</option><option value="mg/mL">mg/mL</option></select></div>
+        <div class="field"><label>Dissolved In</label><select id="dyeSolvent"><option value="DMSO">DMSO</option><option value="Water">Water</option><option value="Ethanol">Ethanol</option><option value="Media">Media</option></select></div>
+        <div class="field"><label>Working Concentration</label><input type="number" id="dyeFinalConc" placeholder="e.g. 50" step="any"><span class="unit" id="dyeFinalUnit">nM</span></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Working Conc Unit</label><select id="dyeFinalConcUnit" onchange="document.getElementById('dyeFinalUnit').textContent=this.value.replace('u','µ')"><option value="nM">nM</option><option value="uM">&mu;M</option><option value="mM">mM</option><option value="ug/mL">&mu;g/mL</option></select></div>
+      </div>
+
+      <!-- INTERMEDIATE DILUTION -->
+      <hr class="divider">
+      <div style="background:var(--card-alt); border-radius:10px; padding:14px 16px; margin-bottom:12px; border:1px solid var(--border);">
+        <div style="font-weight:700; color:#fff; margin-bottom:10px; font-size:0.9rem;">&#128257; Intermediate Dilution Step (optional)</div>
+        <div class="section-desc" style="margin-bottom:10px;">For very concentrated stocks (e.g. 25 mM stock &rarr; 50 nM working), direct pipetting is impractical. Make an intermediate dilution first. <strong>Recommended: 1:1000</strong> (1 &mu;L stock into 999 &mu;L diluent).</div>
+        <div class="row-3">
+          <div class="field">
+            <label>Use Intermediate Dilution?</label>
+            <select id="dyeUseIntermed" onchange="recalcDyeIntermed()">
+              <option value="no">No (direct from stock)</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Dilution Ratio</label>
+            <select id="dyeIntermedRatio" onchange="recalcDyeIntermed()">
+              <option value="1000" selected>1:1000 (recommended)</option>
+              <option value="100">1:100</option>
+              <option value="10">1:10</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Diluent</label>
+            <select id="dyeIntermedDiluent">
+              <option value="PBS" selected>PBS</option>
+              <option value="Media">Media (phenol red-free)</option>
+              <option value="Water">Water</option>
+            </select>
+          </div>
+        </div>
+        <div class="row-3" id="dyeIntermedCustomRow" style="display:none;">
+          <div class="field">
+            <label>Custom Ratio (1:X)</label>
+            <input type="number" id="dyeIntermedCustom" value="500" step="1" oninput="recalcDyeIntermed()">
+            <span class="unit">e.g. 500 = 1 &mu;L into 499 &mu;L</span>
+          </div>
+          <div class="field">
+            <label>Stock Vol for Intermediate</label>
+            <input type="number" id="dyeIntermedStockVol" value="1" step="any" oninput="recalcDyeIntermed()">
+            <span class="unit">&mu;L of stock</span>
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="row" id="dyeIntermedFixedRow" style="display:none;">
+          <div class="field">
+            <label>Stock Vol for Intermediate</label>
+            <input type="number" id="dyeIntermedStockVolFixed" value="1" step="any" oninput="recalcDyeIntermed()">
+            <span class="unit">&mu;L of stock</span>
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="result-box" id="dyeIntermedResult" style="display:none; margin-top:10px;">
+          <div class="result-row"><span class="result-label">Intermediate Concentration</span><span class="result-value" id="dyeIntermedConc">&mdash;</span></div>
+          <div class="result-row"><span class="result-label">Recipe</span><span class="result-value" id="dyeIntermedRecipe" style="font-size:0.85rem;">&mdash;</span></div>
+          <div class="result-row"><span class="result-label">Total Intermediate Volume</span><span class="result-value" id="dyeIntermedTotalVol">&mdash;</span></div>
+          <p class="note">This intermediate replaces the stock when calculating volumes. Keep on ice if in aqueous solution.</p>
+        </div>
+      </div>
+
+      <button class="add-btn" onclick="addDye()" style="margin-top:8px; background:#0e4a5c; border-color:var(--cyan);">+ Add Dye to Plan</button>
+      <div id="dyeList" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- DYE SUMMARY -->
+    <div class="section" style="margin-top:16px;">
+      <div class="section-header"><span class="step-badge" style="background:var(--cyan);">SUMMARY</span><span class="section-title">Dye Loading Summary</span></div>
+      <div id="dyeSummary"><em>Add dyes above to see combined loading plan.</em></div>
+    </div>
+
+  </div><!-- /tab-dyes -->
+
+  <p style="text-align:center;color:var(--text-dim);font-size:0.72rem;margin-top:20px;padding-bottom:20px;">Lawrence Lab &bull; BL Dialysis Calculator &bull; Values are estimates &mdash; always verify with your specific batch</p>
+</div>
+
+<script>
+/* ====== TABS ====== */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    btn.classList.add('active');
+  });
+});
+
+/* ====== UTILS ====== */
+function getVal(id) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; }
+function toUM(val, unit) { return unit === 'mM' ? val * 1000 : unit === 'nM' ? val / 1000 : val; } // convert to µM
+
+let currentFormat = '96well';
+function setFormat(fmt) {
+  currentFormat = fmt;
+  document.querySelectorAll('#tab-treatments .toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + fmt).classList.add('active');
+  const v = document.getElementById('volPerSample'), n = document.getElementById('volPerSampleNote');
+  if (fmt === '96well') { v.value = 200; n.textContent = 'µL (total: media + BL per well)'; }
+  else if (fmt === 'device-reservoir') { v.value = 200; n.innerHTML = 'µL per device (100 µL per reservoir × 2). <strong style="color:#fca5a5;">Remove reservoir media first</strong> (leave channel), add 100 µL BL-media mix each side.'; }
+  else { n.textContent = 'µL per sample (custom)'; }
+  recalcAll();
+}
+
+/* ====== DIALYSIS CALCS ====== */
+function recalcAll() { recalcDialysis(); recalcFiltration(); recalcAddition(); recalcBuffer(); recalcBatch(); }
+
+function recalcDialysis() {
+  const w1 = getVal('w1_bl'), w2 = getVal('w2_pre'), w3 = getVal('w3_post');
+  const eI = document.getElementById('blInjected'), eM = document.getElementById('massIncrease');
+  const eT = document.getElementById('totalPostDialysis'), eD = document.getElementById('dilutionFactor'), eC = document.getElementById('postDialysisConc');
+  if (w1 === null) { [eI,eM,eT,eD,eC].forEach(e => e.textContent = '—'); return; }
+  eI.textContent = w1.toFixed(1) + ' mg (~' + w1.toFixed(0) + ' µL)';
+  if (w2 === null || w3 === null) { [eM,eT,eD,eC].forEach(e => e.textContent = '—'); return; }
+  const mc = w3 - w2, tot = w1 + mc, df = tot / w1;
+  eM.textContent = mc.toFixed(1) + ' mg'; eM.className = 'result-value' + (mc < 0 ? ' error' : '');
+  eT.textContent = tot.toFixed(1) + ' mg (~' + tot.toFixed(0) + ' µL)';
+  eD.textContent = df.toFixed(3) + '×';
+  const sc = getVal('stockConc');
+  eC.textContent = sc ? (sc / df).toFixed(1) + ' U/mL' : '—';
+}
+
+function recalcFiltration() {
+  const w1 = getVal('w1_bl'), w2 = getVal('w2_pre'), w3 = getVal('w3_post'), w4 = getVal('w4_filtered');
+  const eF = document.getElementById('filteredBL'), eR = document.getElementById('recoveryPct');
+  const eL = document.getElementById('filtrationLoss'), eA = document.getElementById('adjDilutionFactor'), eC = document.getElementById('adjPostConc');
+  if (w4 === null) { [eF,eR,eL,eA,eC].forEach(e => e.textContent = '—'); return; }
+  eF.textContent = w4.toFixed(1) + ' mg (~' + w4.toFixed(0) + ' µL)';
+  if (w1 === null || w2 === null || w3 === null) { [eR,eL,eA,eC].forEach(e => e.textContent = '—'); return; }
+  const tot = w1 + (w3 - w2), rec = (w4 / tot) * 100, loss = tot - w4, df = tot / w1;
+  eR.textContent = rec.toFixed(1) + '%'; eR.className = 'result-value' + (rec < 70 ? ' error' : rec < 85 ? ' warn' : '');
+  eL.textContent = loss.toFixed(1) + ' mg'; eA.textContent = df.toFixed(3) + '× (unchanged)';
+  const sc = getVal('stockConc');
+  eC.textContent = sc && df > 0 ? (sc / df).toFixed(1) + ' U/mL' : '—';
+}
+
+function getDilutionFactor() {
+  const m = getVal('manualDF'); if (m !== null && m > 0) return m;
+  const w1 = getVal('w1_bl'), w2 = getVal('w2_pre'), w3 = getVal('w3_post');
+  return (w1 && w2 !== null && w3 !== null && w1 > 0) ? (w1 + (w3 - w2)) / w1 : null;
+}
+
+function recalcAddition() {
+  const sc = getVal('stockConc'), tc = getVal('targetConc'), vps = getVal('volPerSample'), ns = getVal('nSamples');
+  const ex = getVal('extraVol') || 0, df = getDilutionFactor();
+  const eTV = document.getElementById('totalVolNeeded'), eDFU = document.getElementById('dfUsed');
+  const eF = document.getElementById('formulaDisplay'), eBL = document.getElementById('blToAdd');
+  const eM = document.getElementById('mediaToAdd'), eT = document.getElementById('totalMix');
+  const ePS = document.getElementById('perSampleBL'), eN = document.getElementById('pipetteNote');
+  if (!sc || !tc || !vps || !ns) { eF.innerHTML = 'Enter all values...'; [eBL,eM,eT,ePS].forEach(e => e.textContent = '—'); return; }
+  const tv = (vps * ns) + ex;
+  eTV.textContent = tv.toLocaleString() + ' µL';
+  if (!df) { eDFU.textContent = 'Need weights or manual DF'; eDFU.className = 'result-value warn'; eF.innerHTML = 'Enter dialysis weights (Tab 1) or manual DF...'; [eBL,eM,eT,ePS].forEach(e => e.textContent = '—'); return; }
+  eDFU.textContent = df.toFixed(3) + '×'; eDFU.className = 'result-value';
+  const bv = (tc * tv * df) / sc, mv = tv - bv, bp = bv / ns, mp = vps - bp;
+  eF.innerHTML = `<div style="margin-bottom:8px;color:var(--text);">C1 × V1 = V<sub>total</sub> × C2 × DF</div>
+    <div>${sc} × V1 = ${tv} × ${tc} × ${df.toFixed(3)}</div>
+    <div style="margin-top:6px;color:var(--green);">V1 = <strong>${bv.toFixed(1)} µL</strong> dialyzed BL</div>`;
+  eBL.textContent = bv.toFixed(1); eM.textContent = mv.toFixed(1); eT.textContent = tv.toLocaleString(); ePS.textContent = bp.toFixed(1);
+  let notes = [];
+  if (mv < 0) { notes.push('⚠️ Media negative! BL exceeds total.'); eM.style.color = 'var(--red)'; } else { eM.style.color = '#fff'; }
+  if (bp < 1) notes.push('⚠️ BL/sample <1 µL — serial dilution recommended.');
+  const w4C = getVal('w4_filtered'), w1C = getVal('w1_bl'), w2C = getVal('w2_pre'), w3C = getVal('w3_post');
+  if (w1C && w2C !== null && w3C !== null) {
+    const avail = w4C !== null ? w4C : (w1C + (w3C - w2C));
+    const src = w4C !== null ? 'filtered' : 'dialyzed';
+    notes.push(bv > avail ? `⚠️ Need ${bv.toFixed(0)} µL but only ~${avail.toFixed(0)} µL ${src} BL!` : `✓ ${avail.toFixed(0)} µL ${src} available, using ${bv.toFixed(0)} µL (${((bv/avail)*100).toFixed(0)}%)`);
+  }
+  notes.push(`Per sample: ${bp.toFixed(1)} µL BL + ${mp.toFixed(1)} µL media = ${vps} µL`);
+  eN.innerHTML = notes.join('<br>');
+}
+
+function recalcBuffer() {
+  const s = (getVal('bufferVol') || 1000) / 1000;
+  document.getElementById('monobasic').textContent = (6.098 * s).toFixed(3) + ' g';
+  document.getElementById('dibasic').textContent = (825 * s).toFixed(1) + ' mg';
+  document.getElementById('bufferWater').textContent = 'to ' + (s * 1000) + ' mL';
+}
+
+function recalcBatch() {
+  const sc = getVal('stockConc'), tc = getVal('targetConc'), vps = getVal('volPerSample'), ex = getVal('extraVol') || 0, df = getDilutionFactor();
+  const tb = document.getElementById('batchBody'); tb.innerHTML = '';
+  if (!sc || !tc || !vps || !df) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--text-dim);text-align:center;">Enter values above</td></tr>'; return; }
+  [1,2,3,4,6,8,10,12].forEach(n => {
+    const tv = vps*n+ex, bv = (tc*tv*df)/sc, mv = tv-bv;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${n}</td><td>${tv}</td><td>${bv.toFixed(1)}</td><td>${mv.toFixed(1)}</td><td>${(bv/n).toFixed(1)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function recalcPlan() {
+  const w = getVal('plan_wells')||0, d = getVal('plan_devices')||0;
+  const tc = getVal('plan_targetConc'), sc = getVal('plan_stockConc'), df = getVal('plan_df'), lp = getVal('plan_loss')||0;
+  const eN = document.getElementById('plan_blNeeded'), eL = document.getElementById('plan_blWithLoss');
+  const eS = document.getElementById('plan_stockVol'), eC = document.getElementById('plan_cassette'), eD = document.getElementById('plan_cassetteDetail');
+  if (!tc || !sc || !df || df <= 0) { [eN,eL,eS,eC].forEach(e => e.textContent = '—'); eD.textContent = ''; return; }
+  const per = (tc * 200 * df) / sc, tot = w*per + d*per + 150;
+  eN.textContent = tot.toFixed(0) + ' µL (+ 150 µL overage)';
+  const wl = tot / (1 - lp/100);
+  eL.textContent = wl.toFixed(0) + ' µL';
+  const sv = wl / df;
+  eS.textContent = sv.toFixed(0) + ' µL stock';
+  if (sv <= 500) { eC.textContent = '7K MWCO, 0.1–0.5 mL (#66373)'; eD.innerHTML = sv.toFixed(0) + ' µL fits small cassette. Fastest dialysis.' + (sv < 100 ? ' <span style="color:var(--yellow);">Near min (100 µL).</span>' : ''); }
+  else if (sv <= 3000) { eC.textContent = '3.5K MWCO, 0.5–3.0 mL (#66330)'; eD.textContent = sv.toFixed(0) + ' µL exceeds small cassette.'; }
+  else { eC.textContent = 'Multiple cassettes'; eD.innerHTML = '<span style="color:var(--yellow);">' + sv.toFixed(0) + ' µL &mdash; split across cassettes.</span>'; }
+}
+
+/* ====== INTERMEDIATE DILUTION HELPERS ====== */
+function setupIntermed(prefix) {
+  // prefix = 'drug' or 'dye'
+  const useEl = document.getElementById(prefix + 'UseIntermed');
+  const ratioEl = document.getElementById(prefix + 'IntermedRatio');
+  const customRow = document.getElementById(prefix + 'IntermedCustomRow');
+  const fixedRow = document.getElementById(prefix + 'IntermedFixedRow');
+  const resultBox = document.getElementById(prefix + 'IntermedResult');
+
+  const useIt = useEl.value === 'yes';
+  const isCustom = ratioEl.value === 'custom';
+
+  if (!useIt) {
+    resultBox.style.display = 'none';
+    fixedRow.style.display = 'none';
+    customRow.style.display = 'none';
+    return null;
+  }
+
+  fixedRow.style.display = isCustom ? 'none' : 'grid';
+  customRow.style.display = isCustom ? 'grid' : 'none';
+  resultBox.style.display = 'block';
+
+  const ratio = isCustom ? (getVal(prefix + 'IntermedCustom') || 1000) : parseInt(ratioEl.value);
+  const stockVol = isCustom ? (getVal(prefix + 'IntermedStockVol') || 1) : (getVal(prefix + 'IntermedStockVolFixed') || 1);
+  const diluentVol = stockVol * (ratio - 1);
+  const totalIntermedVol = stockVol * ratio;
+  const diluent = document.getElementById(prefix + 'IntermedDiluent').value;
+
+  // Get stock conc & unit
+  const sConc = getVal(prefix === 'drug' ? 'drugStockConc' : 'dyeStockConc');
+  const sUnit = document.getElementById(prefix === 'drug' ? 'drugStockUnit' : 'dyeStockUnit').value;
+
+  const intermedConc = sConc ? sConc / ratio : null;
+  if (sConc) {
+    document.getElementById(prefix + 'IntermedConc').textContent = intermedConc.toPrecision(4) + ' ' + sUnit.replace('u','µ');
+    document.getElementById(prefix + 'IntermedRecipe').innerHTML =
+      stockVol + ' µL stock + ' + diluentVol.toFixed(0) + ' µL ' + diluent +
+      ' = ' + totalIntermedVol.toFixed(0) + ' µL at 1:' + ratio;
+  } else {
+    document.getElementById(prefix + 'IntermedConc').textContent = '—';
+    document.getElementById(prefix + 'IntermedRecipe').innerHTML = '—';
+  }
+  document.getElementById(prefix + 'IntermedTotalVol').textContent = totalIntermedVol.toFixed(0) + ' µL';
+  return sConc ? { ratio, intermedConc, sUnit } : null;
+}
+
+function recalcDrugIntermed() { setupIntermed('drug'); }
+function recalcDyeIntermed() { setupIntermed('dye'); }
+
+function getEffectiveStock(prefix) {
+  // Returns { conc, unit } using intermediate if enabled
+  const useIt = document.getElementById(prefix + 'UseIntermed').value === 'yes';
+  const sConc = getVal(prefix === 'drug' ? 'drugStockConc' : 'dyeStockConc');
+  const sUnit = document.getElementById(prefix === 'drug' ? 'drugStockUnit' : 'dyeStockUnit').value;
+  if (!useIt || !sConc) return { conc: sConc, unit: sUnit };
+
+  const ratioEl = document.getElementById(prefix + 'IntermedRatio');
+  const ratio = ratioEl.value === 'custom' ? (getVal(prefix + 'IntermedCustom') || 1000) : parseInt(ratioEl.value);
+  return { conc: sConc / ratio, unit: sUnit };
+}
+
+/* ====== DRUG SYSTEM ====== */
+let drugEntries = [], drugId = 0;
+
+function calcVolumes(stockConc, stockUnit, finalConc, finalUnit, totalVol) {
+  // Handle mass-based units separately
+  if (stockUnit === 'mg/mL' && finalUnit === 'ug/mL') {
+    return (finalConc / 1000 * totalVol) / stockConc;
+  }
+  if (stockUnit === 'mg/mL' || finalUnit === 'ug/mL') {
+    return (finalConc * totalVol) / stockConc; // same base unit
+  }
+  // Molar units: convert both to µM
+  const s = toUM(stockConc, stockUnit), f = toUM(finalConc, finalUnit);
+  return (f * totalVol) / s;
+}
+
+function formatVol(v) {
+  if (v < 0.01) return v.toExponential(2);
+  if (v < 0.1) return v.toFixed(3);
+  if (v < 1) return v.toFixed(2);
+  return v.toFixed(1);
+}
+
+function addDrug() {
+  const sel = document.getElementById('drugSelect');
+  let name = sel.value; if (!name) return alert('Select a drug');
+  if (name === 'Custom Drug') name = document.getElementById('drugCustomName').value.trim() || 'Custom Drug';
+  const origSConc = getVal('drugStockConc'), origSUnit = document.getElementById('drugStockUnit').value;
+  const solvent = document.getElementById('drugSolvent').value;
+  const fConc = getVal('drugFinalConc'), fUnit = document.getElementById('drugFinalConcUnit').value;
+  const nBL = getVal('drugNBL') || 0, nCtrl = getVal('drugNCtrl') || 0;
+  if (!origSConc || !fConc) return alert('Enter stock and final concentration');
+  if (nBL + nCtrl === 0) return alert('Enter at least one well');
+
+  // Use intermediate dilution if enabled
+  const eff = getEffectiveStock('drug');
+  const sConc = eff.conc, sUnit = eff.unit;
+  const usingIntermed = document.getElementById('drugUseIntermed').value === 'yes';
+  let intermedLabel = '';
+  if (usingIntermed) {
+    const ratioEl = document.getElementById('drugIntermedRatio');
+    const ratio = ratioEl.value === 'custom' ? (getVal('drugIntermedCustom') || 1000) : parseInt(ratioEl.value);
+    intermedLabel = ' (via 1:' + ratio + ' intermediate: ' + sConc.toPrecision(3) + ' ' + sUnit.replace('u','µ') + ')';
+  }
+
+  const vps = getVal('volPerSample') || 200;
+  const nTotal = nBL + nCtrl;
+  const totalVol = vps * nTotal + 50;
+  const drugVol = calcVolumes(sConc, sUnit, fConc, fUnit, totalVol);
+  const perWell = drugVol / nTotal;
+  // DMSO: if using intermediate diluted in PBS/media/water, the intermediate is no longer in DMSO
+  const effectiveSolvent = usingIntermed ? document.getElementById('drugIntermedDiluent').value : solvent;
+  const dmso = effectiveSolvent === 'DMSO' ? (perWell / vps * 100) : (solvent === 'DMSO' && usingIntermed ? 0 : 0);
+  const needsIntermediate = !usingIntermed && perWell < 0.5;
+
+  drugEntries.push({ id: drugId++, name, sConc: origSConc, sUnit: origSUnit, solvent, fConc, fUnit, nBL, nCtrl, nTotal, totalVol, drugVol, perWell, dmso, needsIntermediate, usingIntermed, intermedLabel, pipetteFrom: usingIntermed ? 'intermediate' : 'stock' });
+  renderDrugs();
+}
+
+function removeDrug(id) { drugEntries = drugEntries.filter(d => d.id !== id); renderDrugs(); }
+
+function renderDrugs() {
+  const c = document.getElementById('drugList');
+  if (!drugEntries.length) { c.innerHTML = ''; document.getElementById('dmsoWarning').style.display = 'none'; updateTreatmentSummary(); return; }
+  let html = '', totalDMSO = 0;
+  for (const d of drugEntries) {
+    totalDMSO += d.dmso;
+    const condLabel = d.nBL > 0 && d.nCtrl > 0 ? `${d.nBL} BL + ${d.nCtrl} ctrl` : d.nBL > 0 ? `${d.nBL} BL wells` : `${d.nCtrl} ctrl wells`;
+    html += `<div class="treatment-row">
+      <div class="treatment-header"><span class="name">${d.name}</span><button class="remove-btn" onclick="removeDrug(${d.id})">Remove</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:0.82rem;color:var(--text-dim);">
+        <div>Stock: <strong style="color:var(--text);">${d.sConc} ${d.sUnit.replace('u','µ')}</strong> in ${d.solvent}</div>
+        <div>Final: <strong style="color:var(--text);">${d.fConc} ${d.fUnit.replace('u','µ')}</strong></div>
+        <div>Conditions: <strong style="color:var(--text);">${condLabel}</strong></div>
+      </div>
+      <div style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">
+        Pipette from: <strong style="color:var(--text);">${d.pipetteFrom || 'stock'}</strong>${d.intermedLabel || ''}<br>
+        Total: <strong style="color:var(--green);">${formatVol(d.drugVol)} µL</strong> of ${d.pipetteFrom || 'stock'} into ${d.totalVol} µL &nbsp;|&nbsp; Per well: <strong>${formatVol(d.perWell)} µL</strong>${d.dmso > 0 ? ' (' + d.dmso.toFixed(3) + '% DMSO)' : ''}
+      </div>
+      ${d.needsIntermediate ? '<div class="intermed-warning">⚠️ Volume per well <0.5 µL — consider using the intermediate dilution step above.</div>' : ''}
+    </div>`;
+  }
+  c.innerHTML = html;
+  const w = document.getElementById('dmsoWarning');
+  if (totalDMSO > 0.1) { w.style.display = 'block'; w.innerHTML = `⚠️ Combined DMSO: <strong>${totalDMSO.toFixed(3)}%</strong>${totalDMSO > 0.5 ? ' — likely toxic to ECFCs!' : ' — monitor for toxicity.'}`; }
+  else { w.style.display = 'none'; }
+  updateTreatmentSummary();
+}
+
+function updateTreatmentSummary() {
+  const c = document.getElementById('treatmentSummary');
+  if (!drugEntries.length) { c.innerHTML = '<em>Add drugs above to see combined treatment plan.</em>'; return; }
+  let html = '<table class="batch-table"><thead><tr><th>Compound</th><th>Final Conc</th><th>BL Wells</th><th>Ctrl Wells</th><th>Vol/well</th><th>Intermediate?</th><th>DMSO%</th></tr></thead><tbody>';
+  let td = 0;
+  for (const d of drugEntries) {
+    td += d.dmso;
+    const dIntermed = d.usingIntermed ? '<span style="color:var(--green);">Yes</span>' : (d.needsIntermediate ? '<span style="color:var(--yellow);">Rec.</span>' : 'No');
+    const dDmso = d.usingIntermed && d.solvent === 'DMSO' ? '<span style="color:var(--green);">~0%</span>' : (d.dmso > 0 ? d.dmso.toFixed(3)+'%' : '—');
+    html += `<tr><td>${d.name}</td><td>${d.fConc} ${d.fUnit.replace('u','µ')}</td><td>${d.nBL}</td><td>${d.nCtrl}</td><td>${formatVol(d.perWell)} µL</td><td>${dIntermed}</td><td>${dDmso}</td></tr>`;
+  }
+  if (td > 0) html += `<tr><td colspan="5"></td><td style="font-weight:700;">Total DMSO:</td><td style="font-weight:700;color:${td>0.5?'var(--red)':td>0.1?'var(--yellow)':'var(--green)'};">${td.toFixed(3)}%</td></tr>`;
+  else if (drugEntries.some(d => d.usingIntermed && d.solvent === 'DMSO')) html += `<tr><td colspan="5"></td><td style="font-weight:700;">Total DMSO:</td><td style="font-weight:700;color:var(--green);">~0%</td></tr>`;
+  html += '</tbody></table>';
+  c.innerHTML = html;
+}
+
+/* ====== DYE SYSTEM ====== */
+let dyeEntries = [], dyeId = 0;
+
+function addDye() {
+  const sel = document.getElementById('dyeSelect');
+  let name = sel.value; if (!name) return alert('Select a dye');
+  if (name === 'Custom Dye') name = document.getElementById('dyeCustomName').value.trim() || 'Custom Dye';
+  const origSConc = getVal('dyeStockConc'), origSUnit = document.getElementById('dyeStockUnit').value;
+  const solvent = document.getElementById('dyeSolvent').value;
+  const fConc = getVal('dyeFinalConc'), fUnit = document.getElementById('dyeFinalConcUnit').value;
+  if (!origSConc || !fConc) return alert('Enter stock and working concentration');
+
+  // Use intermediate if enabled
+  const eff = getEffectiveStock('dye');
+  const sConc = eff.conc, sUnit = eff.unit;
+  const usingIntermed = document.getElementById('dyeUseIntermed').value === 'yes';
+  let intermedLabel = '';
+  if (usingIntermed) {
+    const ratioEl = document.getElementById('dyeIntermedRatio');
+    const ratio = ratioEl.value === 'custom' ? (getVal('dyeIntermedCustom') || 1000) : parseInt(ratioEl.value);
+    intermedLabel = '1:' + ratio + ' intermediate (' + sConc.toPrecision(3) + ' ' + sUnit.replace('u','µ') + ')';
+  }
+
+  const vps = getVal('dyeVolPerSample') || 200;
+  const ns = getVal('dyeNSamples') || 10;
+  const totalVol = vps * ns + 50;
+  const dyeVol = calcVolumes(sConc, sUnit, fConc, fUnit, totalVol);
+  const perWell = dyeVol / ns;
+  const dmso = (solvent === 'DMSO' && !usingIntermed) ? (perWell / vps * 100) : 0;
+  const needsIntermediate = !usingIntermed && perWell < 0.5;
+
+  let intermedText = '';
+  if (needsIntermediate) {
+    const fold = perWell < 0.05 ? 100 : 10;
+    intermedText = `Consider using the intermediate dilution step above (e.g. 1:${fold}).`;
+  }
+
+  dyeEntries.push({ id: dyeId++, name, sConc: origSConc, sUnit: origSUnit, solvent, fConc, fUnit, ns, totalVol, dyeVol, perWell, dmso, needsIntermediate, intermedText, usingIntermed, intermedLabel, pipetteFrom: usingIntermed ? 'intermediate' : 'stock' });
+  renderDyes();
+}
+
+function removeDye(id) { dyeEntries = dyeEntries.filter(d => d.id !== id); renderDyes(); }
+
+function recalcDyeList() {
+  // Recalculate all existing dyes with new well count / volume
+  const vps = getVal('dyeVolPerSample') || 200;
+  const ns = getVal('dyeNSamples') || 10;
+  dyeEntries.forEach(d => {
+    d.ns = ns;
+    d.totalVol = vps * ns + 50;
+    d.dyeVol = calcVolumes(d.sConc, d.sUnit, d.fConc, d.fUnit, d.totalVol);
+    d.perWell = d.dyeVol / ns;
+    d.dmso = (d.solvent === 'DMSO' && !d.usingIntermed) ? (d.perWell / vps * 100) : 0;
+    d.needsIntermediate = !d.usingIntermed && d.perWell < 0.5;
+    if (d.needsIntermediate) {
+      const fold = d.perWell < 0.05 ? 100 : 10;
+      d.intermedText = `Make 1:${fold} intermediate (${d.sConc/fold} ${d.sUnit.replace('u','µ')} in media). Add ${formatVol(d.perWell * fold)} µL/well.`;
+    } else { d.intermedText = ''; }
+  });
+  renderDyes();
+}
+
+function renderDyes() {
+  const c = document.getElementById('dyeList');
+  if (!dyeEntries.length) { c.innerHTML = ''; updateDyeSummary(); return; }
+  let html = '';
+  for (const d of dyeEntries) {
+    html += `<div class="treatment-row" style="border-color:var(--cyan);">
+      <div class="treatment-header"><span class="name" style="color:#67e8f9;">${d.name}</span><button class="remove-btn" onclick="removeDye(${d.id})">Remove</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:0.82rem;color:var(--text-dim);">
+        <div>Stock: <strong style="color:var(--text);">${d.sConc} ${d.sUnit.replace('u','µ')}</strong> in ${d.solvent}</div>
+        <div>Working: <strong style="color:var(--text);">${d.fConc} ${d.fUnit.replace('u','µ')}</strong></div>
+        <div>Wells: <strong style="color:var(--text);">${d.ns}</strong></div>
+      </div>
+      <div style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">
+        Pipette from: <strong style="color:var(--text);">${d.pipetteFrom || 'stock'}</strong>${d.intermedLabel ? ' — ' + d.intermedLabel : ''}<br>
+        Total: <strong style="color:#67e8f9;">${formatVol(d.dyeVol)} µL</strong> of ${d.pipetteFrom || 'stock'} into ${d.totalVol} µL &nbsp;|&nbsp; Per well: <strong>${formatVol(d.perWell)} µL</strong>${d.dmso > 0 ? ' (' + d.dmso.toFixed(3) + '% DMSO)' : ''}
+      </div>
+      ${d.needsIntermediate ? `<div class="intermed-warning">⚠️ Volume <0.5 µL/well — ${d.intermedText}</div>` : ''}
+    </div>`;
+  }
+  c.innerHTML = html;
+  updateDyeSummary();
+}
+
+function updateDyeSummary() {
+  const c = document.getElementById('dyeSummary');
+  if (!dyeEntries.length) { c.innerHTML = '<em>Add dyes above to see loading plan.</em>'; return; }
+  let html = '<table class="batch-table"><thead><tr><th>Dye</th><th>Working Conc</th><th>Wells</th><th>Vol/well</th><th>Intermediate?</th><th>DMSO%</th></tr></thead><tbody>';
+  let td = 0;
+  for (const d of dyeEntries) {
+    td += d.dmso;
+    const intermedCell = d.usingIntermed ? '<span style="color:var(--green);">Yes</span>' : (d.needsIntermediate ? '<span style="color:var(--yellow);">Recommended</span>' : 'No');
+    const dmsoCell = d.usingIntermed && d.solvent === 'DMSO' ? '<span style="color:var(--green);">~0%</span>' : (d.dmso > 0 ? d.dmso.toFixed(3)+'%' : '—');
+    html += `<tr><td style="color:#67e8f9;">${d.name}</td><td>${d.fConc} ${d.fUnit.replace('u','µ')}</td><td>${d.ns}</td><td>${formatVol(d.perWell)} µL</td><td>${intermedCell}</td><td>${dmsoCell}</td></tr>`;
+  }
+  if (td > 0) html += `<tr><td colspan="4"></td><td style="font-weight:700;">Total DMSO:</td><td style="font-weight:700;color:${td>0.5?'var(--red)':td>0.1?'var(--yellow)':'var(--green)'};">${td.toFixed(3)}%</td></tr>`;
+  html += '</tbody></table>';
+  c.innerHTML = html;
+}
+
+/* ====== INIT ====== */
+recalcPlan(); recalcAll();
+</script>
+</body>
+</html>

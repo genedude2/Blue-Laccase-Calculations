@@ -624,7 +624,8 @@
       <span id="syncStatus">Local only &mdash; no Google Sheets connected</span>
       <div style="margin-left:auto; display:flex; gap:6px;">
         <button class="toggle-btn" onclick="toggleSyncSettings()" style="padding:4px 10px; font-size:0.75rem;">Settings</button>
-        <button class="toggle-btn" onclick="syncNow()" id="syncBtn" style="padding:4px 10px; font-size:0.75rem; display:none;">Sync Now</button>
+        <button class="toggle-btn" onclick="pullFromSheets()" id="pullBtn" style="padding:4px 10px; font-size:0.75rem; display:none; border-color:var(--cyan); color:var(--cyan);">Pull from Sheet</button>
+        <button class="toggle-btn" onclick="pushToSheets()" id="pushBtn" style="padding:4px 10px; font-size:0.75rem; display:none; border-color:var(--green); color:var(--green);">Push to Sheet</button>
       </div>
     </div>
 
@@ -677,7 +678,12 @@
         <span class="section-title">Register New BL Batch</span>
       </div>
       <div class="section-desc">Log a new dialysis batch. Values can be pulled from Tab 1 if filled in, or enter manually.</div>
-      <div class="row-3">
+      <div class="row-4">
+        <div class="field">
+          <label>Batch Name / ID</label>
+          <input type="text" id="batchName" placeholder="e.g. BL-003" style="font-family:inherit;">
+          <span class="unit">Custom name (or auto-generated)</span>
+        </div>
         <div class="field">
           <label>Date Dialyzed</label>
           <input type="date" id="batchDate" style="font-family:inherit;">
@@ -1242,6 +1248,15 @@ function daysSince(dateStr) {
   return Math.floor((now - d) / (1000 * 60 * 60 * 24));
 }
 
+function fmtDate(dateStr) {
+  // Handle ISO strings like "2026-03-07T05:00:00.000Z" and plain "2026-03-07"
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch(e) { return String(dateStr); }
+}
+
 function ageBadge(days) {
   if (days <= 7) return `<span class="age-badge age-green">${days}d</span>`;
   if (days <= 14) return `<span class="age-badge age-yellow">${days}d</span>`;
@@ -1258,6 +1273,7 @@ function volBarColor(pct) {
 function registerBatch() {
   const date = document.getElementById('batchDate').value;
   if (!date) return alert('Enter the dialysis date');
+  const customName = document.getElementById('batchName').value.trim();
   const stockConc = getVal('batchStockConc') || 1000;
   const df = getVal('batchDF');
   const w4 = getVal('batchW4');
@@ -1265,9 +1281,13 @@ function registerBatch() {
 
   if (!w4) return alert('Enter W4 (post-filtration weight) — this is the initial volume');
 
+  // Check for duplicate name
+  const batchId = customName || getNextBatchId();
+  if (batches.find(b => b.id === batchId)) return alert('A batch named "' + batchId + '" already exists. Choose a different name.');
+
   const postConc = (df && df > 0) ? stockConc / df : null;
   const batch = {
-    id: getNextBatchId(),
+    id: batchId,
     date: date,
     stockConc: stockConc,
     df: df,
@@ -1286,6 +1306,7 @@ function registerBatch() {
   syncToSheets('batch', batch);
 
   // Clear form
+  document.getElementById('batchName').value = '';
   document.getElementById('batchW4').value = '';
   document.getElementById('batchDF').value = '';
   document.getElementById('batchNotes').value = '';
@@ -1323,6 +1344,28 @@ function deleteBatch(id) {
   populateBatchDropdown();
 }
 
+function adjustVolume(id) {
+  const b = batches.find(b => b.id === id);
+  if (!b) return;
+  const input = prompt('Current remaining volume: ' + b.remainingVol.toFixed(0) + ' µL\n\nEnter new remaining volume (µL), or use +/- to add/subtract:\n  e.g. "800" to set to 800\n  e.g. "-50" to subtract 50\n  e.g. "+100" to add 100', b.remainingVol.toFixed(0));
+  if (input === null) return;
+  const trimmed = input.trim();
+  let newVol;
+  if (trimmed.startsWith('+')) {
+    newVol = b.remainingVol + parseFloat(trimmed.slice(1));
+  } else if (trimmed.startsWith('-')) {
+    newVol = b.remainingVol - parseFloat(trimmed.slice(1));
+  } else {
+    newVol = parseFloat(trimmed);
+  }
+  if (isNaN(newVol) || newVol < 0) return alert('Invalid volume');
+  b.remainingVol = Math.min(newVol, b.initialVol * 1.1); // Allow slight overshoot but not crazy
+  saveData('batches', batches);
+  renderBatches();
+  populateBatchDropdown();
+  syncToSheets('batchUpdate', b);
+}
+
 function setBatchFilter(f) {
   batchFilter = f;
   document.querySelectorAll('#tab-batches .toggle-btn').forEach(b => b.classList.remove('active'));
@@ -1355,7 +1398,7 @@ function renderBatches() {
     if (batchExps.length > 0) {
       usageHtml = '<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);"><div style="font-size:0.78rem; font-weight:600; color:var(--text-dim); margin-bottom:6px;">Usage History:</div>';
       for (const e of batchExps.slice(0, 5)) {
-        usageHtml += `<div style="font-size:0.75rem; color:var(--text-dim); padding:2px 0;">${e.date} &mdash; ${e.name || 'Experiment'}: <strong style="color:var(--text);">-${e.volUsed.toFixed(0)} &mu;L</strong>${e.drugs ? ' (' + e.drugs + ')' : ''}</div>`;
+        usageHtml += `<div style="font-size:0.75rem; color:var(--text-dim); padding:2px 0;">${fmtDate(e.date)} &mdash; ${e.name || 'Experiment'}: <strong style="color:var(--text);">-${Number(e.volUsed).toFixed(0)} &mu;L</strong>${e.drugs ? ' (' + e.drugs + ')' : ''}</div>`;
       }
       if (batchExps.length > 5) usageHtml += `<div style="font-size:0.72rem; color:var(--text-dim);">...and ${batchExps.length - 5} more</div>`;
       usageHtml += '</div>';
@@ -1367,7 +1410,7 @@ function renderBatches() {
         ${ageBadge(days)}
       </div>
       <div class="batch-meta">
-        <strong>Dialyzed:</strong> ${b.date} (${days} days ago)${isExpired ? ' <span style="color:var(--red); font-weight:700;">&mdash; EXPIRED, consider discarding</span>' : ''}<br>
+        <strong>Dialyzed:</strong> ${fmtDate(b.date)} (${days} days ago)${isExpired ? ' <span style="color:var(--red); font-weight:700;">&mdash; EXPIRED, consider discarding</span>' : ''}<br>
         ${b.postConc ? '<strong>Concentration:</strong> ' + b.postConc.toFixed(1) + ' U/mL (DF ' + (b.df ? b.df.toFixed(3) : '?') + '&times;)<br>' : ''}
         <strong>Volume:</strong> ${b.remainingVol.toFixed(0)} / ${b.initialVol.toFixed(0)} &mu;L remaining (${pct.toFixed(0)}%)
         ${b.notes ? '<br><strong>Notes:</strong> ' + b.notes : ''}
@@ -1375,6 +1418,7 @@ function renderBatches() {
       <div class="vol-bar"><div class="vol-bar-fill" style="width:${Math.max(pct,2)}%; background:${volBarColor(pct)};"></div></div>
       ${usageHtml}
       <div class="batch-actions">
+        <button onclick="adjustVolume('${b.id}')">Adjust Volume</button>
         ${b.status === 'active' ? `<button onclick="archiveBatch('${b.id}')">Archive</button>` : `<button onclick="reactivateBatch('${b.id}')">Reactivate</button>`}
         <button onclick="deleteBatch('${b.id}')" style="border-color:var(--red); color:var(--red);">Delete</button>
       </div>
@@ -1505,12 +1549,12 @@ function renderLog() {
     const batchInfo = batch ? `${e.batchId} (${batch.postConc ? batch.postConc.toFixed(1) + ' U/mL' : '?'})` : e.batchId;
     html += `<div class="log-entry">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span class="log-date">${e.date}</span>
+        <span class="log-date">${fmtDate(e.date)}</span>
         <button class="remove-btn" onclick="deleteExperiment('${e.id}')" style="font-size:0.7rem; padding:2px 8px;">Delete</button>
       </div>
       <div class="log-details">
         <strong>${e.name || 'Experiment'}</strong> &mdash; Batch: <strong>${batchInfo}</strong><br>
-        ${e.wells > 0 ? e.wells + ' wells' : ''}${e.wells > 0 && e.devices > 0 ? ' + ' : ''}${e.devices > 0 ? e.devices + ' devices' : ''} &mdash; <strong style="color:var(--green);">${e.volUsed.toFixed(1)} &mu;L BL used</strong> @ ${e.targetConc} U/mL
+        ${e.wells > 0 ? e.wells + ' wells' : ''}${e.wells > 0 && e.devices > 0 ? ' + ' : ''}${e.devices > 0 ? e.devices + ' devices' : ''} &mdash; <strong style="color:var(--green);">${Number(e.volUsed).toFixed(1)} &mu;L BL used</strong> @ ${e.targetConc} U/mL
         ${e.drugs ? '<br>Drugs: ' + e.drugs : ''}
         ${e.dyes ? '<br>Dyes: ' + e.dyes : ''}
         ${e.notes ? '<br><em>' + e.notes + '</em>' : ''}
@@ -1521,23 +1565,28 @@ function renderLog() {
 }
 
 function deleteExperiment(id) {
-  const exp = experiments.find(e => e.id === id);
-  if (!exp) return;
-  if (!confirm('Delete this experiment entry? The volume will be added back to the batch.')) return;
+  try {
+    const exp = experiments.find(e => String(e.id) === String(id));
+    if (!exp) { alert('Experiment not found: ' + id); return; }
 
-  // Restore volume to batch
-  const batch = batches.find(b => b.id === exp.batchId);
-  if (batch) {
-    batch.remainingVol = Math.min(batch.initialVol, batch.remainingVol + exp.volUsed);
-    if (batch.status === 'archived' && batch.remainingVol > 0) batch.status = 'active';
-    saveData('batches', batches);
-  }
+    const ok = window.confirm('Delete this experiment entry? The volume (' + Number(exp.volUsed).toFixed(1) + ' µL) will be added back to batch ' + exp.batchId + '.');
+    if (!ok) return;
 
-  experiments = experiments.filter(e => e.id !== id);
-  saveData('experiments', experiments);
-  renderLog();
-  renderBatches();
-  populateBatchDropdown();
+    // Restore volume to batch
+    const batch = batches.find(b => b.id === exp.batchId);
+    if (batch) {
+      batch.remainingVol = Math.min(batch.initialVol, batch.remainingVol + Number(exp.volUsed));
+      if (batch.status === 'archived' && batch.remainingVol > 0) batch.status = 'active';
+      saveData('batches', batches);
+    }
+
+    experiments = experiments.filter(e => String(e.id) !== String(id));
+    saveData('experiments', experiments);
+    renderLog();
+    renderBatches();
+    populateBatchDropdown();
+    syncToSheets('fullSync', null);
+  } catch(err) { alert('Error deleting: ' + err.message); }
 }
 
 function exportCSV() {
@@ -1580,15 +1629,18 @@ function updateSyncUI() {
   const url = getSheetsUrl();
   const dot = document.getElementById('syncDot');
   const status = document.getElementById('syncStatus');
-  const syncBtn = document.getElementById('syncBtn');
+  const pullBtn = document.getElementById('pullBtn');
+  const pushBtn = document.getElementById('pushBtn');
   if (url) {
     dot.className = 'sync-dot connected';
     status.textContent = 'Google Sheets connected';
-    syncBtn.style.display = 'inline-block';
+    pullBtn.style.display = 'inline-block';
+    pushBtn.style.display = 'inline-block';
   } else {
     dot.className = 'sync-dot disconnected';
     status.textContent = 'Local only — no Google Sheets connected';
-    syncBtn.style.display = 'none';
+    pullBtn.style.display = 'none';
+    pushBtn.style.display = 'none';
   }
 }
 
@@ -1661,8 +1713,54 @@ async function syncToSheets(type, data) {
   const url = getSheetsUrl();
   if (!url) return;
   try {
-    await gsPost(url, { action: type, data: data });
+    if (type === 'fullSync') {
+      await gsPost(url, { action: 'fullSync', batches: batches, experiments: experiments });
+    } else {
+      await gsPost(url, { action: type, data: data });
+    }
   } catch(e) { console.warn('Sheets sync failed:', e); }
+}
+
+async function pullFromSheets() {
+  const url = getSheetsUrl();
+  if (!url) return;
+  const status = document.getElementById('syncStatus');
+  status.textContent = 'Pulling from sheet...';
+  try {
+    const data = await gsGet(url + '?action=getData');
+    if (data.batches && data.batches.length) {
+      batches = data.batches;
+      // Ensure numeric fields are numbers
+      batches.forEach(b => { b.initialVol = Number(b.initialVol) || 0; b.remainingVol = Number(b.remainingVol) || 0; b.stockConc = Number(b.stockConc) || 0; b.df = Number(b.df) || 0; b.postConc = Number(b.postConc) || 0; });
+      saveData('batches', batches);
+    }
+    if (data.experiments && data.experiments.length) {
+      experiments = data.experiments;
+      experiments.forEach(e => { e.volUsed = Number(e.volUsed) || 0; e.wells = Number(e.wells) || 0; e.devices = Number(e.devices) || 0; e.targetConc = Number(e.targetConc) || 0; });
+      saveData('experiments', experiments);
+    }
+    renderBatches(); renderLog(); populateBatchDropdown();
+    status.textContent = 'Pulled from sheet! ' + new Date().toLocaleTimeString();
+    document.getElementById('syncDot').className = 'sync-dot connected';
+  } catch(e) {
+    status.textContent = 'Pull failed: ' + e.message;
+    document.getElementById('syncDot').className = 'sync-dot error';
+  }
+}
+
+async function pushToSheets() {
+  const url = getSheetsUrl();
+  if (!url) return;
+  const status = document.getElementById('syncStatus');
+  status.textContent = 'Pushing to sheet...';
+  try {
+    await gsPost(url, { action: 'fullSync', batches: batches, experiments: experiments });
+    status.textContent = 'Pushed to sheet! ' + new Date().toLocaleTimeString();
+    document.getElementById('syncDot').className = 'sync-dot connected';
+  } catch(e) {
+    status.textContent = 'Push failed: ' + e.message;
+    document.getElementById('syncDot').className = 'sync-dot error';
+  }
 }
 
 async function syncNow() {

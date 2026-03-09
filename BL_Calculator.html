@@ -115,6 +115,7 @@
     <button class="tab-btn" data-tab="dyes">&#128300; Dyes</button>
     <button class="tab-btn" data-tab="batches">&#129514; BL Batches</button>
     <button class="tab-btn" data-tab="log">&#128221; Experiment Log</button>
+    <button class="tab-btn" data-tab="reagents">&#128218; Reagents</button>
   </div>
 
   <!-- ========================================================= -->
@@ -785,14 +786,41 @@
       </div>
       <div class="row">
         <div class="field">
-          <label>Drugs / Treatments Used</label>
+          <label>Drugs / Treatments Used (text)</label>
           <input type="text" id="logDrugs" placeholder="e.g. FCCP 10µM, Mdivi-1 25µM" style="font-family:inherit;">
         </div>
         <div class="field">
-          <label>Dyes Used</label>
+          <label>Dyes Used (text)</label>
           <input type="text" id="logDyes" placeholder="e.g. TMRE 50nM, MitoTracker 100nM" style="font-family:inherit;">
         </div>
       </div>
+
+      <!-- STRUCTURED REAGENT USAGE -->
+      <div style="margin:12px 0 6px; font-weight:600; font-size:0.85rem; color:var(--text);">&#128218; Track Reagent Stock Usage <span style="font-weight:400; color:var(--text-dim); font-size:0.78rem;">(optional &mdash; deducts from inventory)</span></div>
+      <div style="display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:end;">
+        <div class="field">
+          <label>Reagent</label>
+          <select id="logReagentSelect" style="font-size:0.85rem;">
+            <option value="">-- Select from inventory --</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Amount Used</label>
+          <input type="number" id="logReagentAmt" placeholder="e.g. 5" step="any" style="font-size:0.85rem;">
+        </div>
+        <div class="field">
+          <label>Unit</label>
+          <select id="logReagentUnit" style="font-size:0.85rem;">
+            <option value="µL">&mu;L</option>
+            <option value="µg">&mu;g</option>
+            <option value="mg">mg</option>
+            <option value="mL">mL</option>
+          </select>
+        </div>
+        <button class="toggle-btn" onclick="addReagentToLog()" style="padding:8px 12px; font-size:0.82rem; border-color:var(--accent); color:var(--accent); margin-bottom:4px;">+ Add</button>
+      </div>
+      <div id="logReagentList" style="margin-bottom:10px;"></div>
+
       <div class="field" style="margin-bottom:10px;">
         <label>Notes</label>
         <input type="text" id="logNotes" placeholder="Any additional notes..." style="font-family:inherit;">
@@ -817,6 +845,107 @@
     </div>
 
   </div><!-- /tab-log -->
+
+  <!-- ========================================================= -->
+  <!-- TAB 6 : REAGENT INVENTORY                                 -->
+  <!-- ========================================================= -->
+  <div class="tab-page" id="tab-reagents">
+
+    <!-- REAGENT SYNC BAR -->
+    <div class="sync-bar" id="reagentSyncBar">
+      <span class="sync-dot disconnected" id="reagentSyncDot"></span>
+      <span id="reagentSyncStatus">No reagent sheet connected</span>
+      <div style="margin-left:auto; display:flex; gap:6px;">
+        <button class="toggle-btn" onclick="toggleReagentSettings()" style="padding:4px 10px; font-size:0.75rem;">Settings</button>
+        <button class="toggle-btn" onclick="pullReagents()" id="reagentPullBtn" style="padding:4px 10px; font-size:0.75rem; display:none; border-color:var(--cyan); color:var(--cyan);">Pull from Sheet</button>
+        <button class="toggle-btn" onclick="pushReagents()" id="reagentPushBtn" style="padding:4px 10px; font-size:0.75rem; display:none; border-color:var(--green); color:var(--green);">Push to Sheet</button>
+      </div>
+    </div>
+
+    <!-- REAGENT SETTINGS (collapsible) -->
+    <div class="section" id="reagentSettings" style="display:none;">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--purple);">SYNC</span>
+        <span class="section-title">Reagent Sheet Integration</span>
+      </div>
+      <div class="section-desc">Connect to your master reagent Google Sheet. This is <strong>separate</strong> from the BL Tracker sheet &mdash; you'll add a small script to your reagent list sheet.</div>
+      <div class="row">
+        <div class="field">
+          <label>Reagent Sheet Apps Script URL</label>
+          <input type="text" id="reagentSheetsUrl" placeholder="https://script.google.com/macros/s/..." style="font-family:inherit; font-size:0.85rem;" oninput="saveReagentUrl()">
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="add-btn" onclick="testReagentConnection()" style="width:auto; padding:8px 16px; font-size:0.82rem;">Test Connection</button>
+        </div>
+      </div>
+      <div id="reagentConnectionResult" style="margin-top:8px; font-size:0.82rem;"></div>
+      <hr class="divider">
+      <div class="collapsible-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span style="font-size:0.85rem; font-weight:600; color:var(--text);">&#9660; Setup Instructions</span>
+      </div>
+      <div style="display:none; margin-top:10px;">
+        <ol style="color:var(--text-dim); font-size:0.82rem; line-height:2; padding-left:20px;">
+          <li>Open your <strong style="color:var(--text);">Prospective Ordering Reagent list</strong> Google Sheet</li>
+          <li>Make sure column headers include: <strong style="color:var(--text);">Name</strong>, <strong style="color:var(--text);">Status</strong>, <strong style="color:var(--text);">Amnt left</strong>, <strong style="color:var(--text);">Unit</strong>, <strong style="color:var(--text);">Vendor</strong>, <strong style="color:var(--text);">Cat#</strong></li>
+          <li>Optionally add a second sheet tab called <strong style="color:var(--text);">Usage Log</strong> (the script will create it if missing)</li>
+          <li>Go to <strong style="color:var(--text);">Extensions &rarr; Apps Script</strong></li>
+          <li>Delete placeholder code, paste the reagent script from below, click <strong style="color:var(--text);">Save</strong></li>
+          <li>Click <strong style="color:var(--text);">Deploy &rarr; New deployment</strong>, Type = Web app, Execute as = Me, Access = Anyone</li>
+          <li>Copy the URL and paste it above</li>
+        </ol>
+        <div style="margin-top:10px;">
+          <button class="add-btn" onclick="copyReagentScript()" style="width:auto; padding:8px 16px; font-size:0.82rem; background:#064e3b; border-color:var(--green);">Copy Reagent Script to Clipboard</button>
+          <span id="reagentCopyConfirm" style="font-size:0.8rem; color:var(--green); margin-left:10px; display:none;">Copied!</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH / FILTER -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--accent);">INVENTORY</span>
+        <span class="section-title">Reagent Inventory</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
+        <input type="text" id="reagentSearch" placeholder="Search reagents..." oninput="renderReagents()" style="flex:1; min-width:200px; background:var(--input-bg); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:0.85rem;">
+        <button class="toggle-btn active" onclick="setReagentFilter('all')" id="rfAll">All</button>
+        <button class="toggle-btn" onclick="setReagentFilter('inlab')" id="rfInlab">In Lab</button>
+        <button class="toggle-btn" onclick="setReagentFilter('low')" id="rfLow">Low Stock</button>
+        <button class="toggle-btn" onclick="setReagentFilter('order')" id="rfOrder">Needs Ordering</button>
+      </div>
+
+      <!-- ADD REAGENT MANUALLY -->
+      <div class="collapsible-header" onclick="document.getElementById('addReagentForm').style.display=document.getElementById('addReagentForm').style.display==='none'?'block':'none'" style="margin-bottom:10px;">
+        <span style="font-size:0.82rem; color:var(--accent); font-weight:600;">+ Add Reagent Manually</span>
+      </div>
+      <div id="addReagentForm" style="display:none; margin-bottom:14px; padding:12px; background:var(--card-alt); border-radius:8px;">
+        <div class="row-4">
+          <div class="field"><label>Name</label><input type="text" id="newReagentName" style="font-family:inherit;"></div>
+          <div class="field"><label>Status</label><select id="newReagentStatus"><option value="In lab">In lab</option><option value="Received">Received</option><option value="Already have">Already have</option><option value="NOT ORDERED">NOT ORDERED</option></select></div>
+          <div class="field"><label>Amount</label><input type="text" id="newReagentAmt" placeholder="e.g. 10 mM × 1 mL"></div>
+          <div class="field"><label>Vendor</label><input type="text" id="newReagentVendor" style="font-family:inherit;"></div>
+        </div>
+        <div class="row-4">
+          <div class="field"><label>Cat #</label><input type="text" id="newReagentCat" style="font-family:inherit;"></div>
+          <div class="field"><label>Unit</label><input type="text" id="newReagentUnit" placeholder="e.g. 10 mM × 1 mL"></div>
+          <div class="field"><label>Function</label><input type="text" id="newReagentFunc" style="font-family:inherit;"></div>
+          <div class="field" style="justify-content:flex-end;"><button class="add-btn" onclick="addReagentManual()" style="font-size:0.82rem; padding:8px;">Add</button></div>
+        </div>
+      </div>
+
+      <div id="reagentTable"></div>
+    </div>
+
+    <!-- USAGE LOG -->
+    <div class="section">
+      <div class="section-header">
+        <span class="step-badge" style="background:var(--purple);">USAGE</span>
+        <span class="section-title">Reagent Usage Log</span>
+      </div>
+      <div id="reagentUsageLog"><em style="color:var(--text-dim);">No reagent usage logged yet. Use reagents via the Experiment Log tab or adjust stock manually.</em></div>
+    </div>
+
+  </div><!-- /tab-reagents -->
 
   <p style="text-align:center;color:var(--text-dim);font-size:0.72rem;margin-top:20px;padding-bottom:20px;">Lawrence Lab &bull; BL Dialysis Calculator &bull; Values are estimates &mdash; always verify with your specific batch</p>
 </div>
@@ -1507,9 +1636,51 @@ function logExperiment() {
 
   experiments.unshift(entry);
   saveData('experiments', experiments);
+
+  // Deduct reagent usage
+  const reagentUrl = getReagentUrl();
+  for (const ri of logReagentItems) {
+    // Log usage
+    reagentUsage.unshift({
+      date: date,
+      reagent: ri.name,
+      action: 'used',
+      amount: ri.amount,
+      unit: ri.unit,
+      experiment: name || 'Experiment',
+      note: '',
+      created: new Date().toISOString()
+    });
+    // Try to update "Amnt left" in local reagent data
+    const rObj = reagents.find(r => r.Name === ri.name);
+    if (rObj) {
+      // Attempt numeric deduction if Amnt left is parseable
+      const currentAmt = String(rObj['Amnt left'] || '');
+      const numMatch = currentAmt.match(/([\d.]+)/);
+      if (numMatch) {
+        const currentNum = parseFloat(numMatch[1]);
+        const used = parseFloat(ri.amount);
+        if (!isNaN(currentNum) && !isNaN(used)) {
+          const newNum = Math.max(0, currentNum - used);
+          rObj['Amnt left'] = currentAmt.replace(numMatch[1], newNum.toFixed(1));
+        }
+      }
+      // Push to reagent sheet
+      if (reagentUrl) updateReagentInSheet(rObj);
+    }
+    // Log to reagent sheet
+    if (reagentUrl) {
+      gsPost(reagentUrl, { action: 'logUsage', data: { date, reagent: ri.name, action: 'used', amount: ri.amount, unit: ri.unit, experiment: name || 'Experiment' } }).catch(() => {});
+    }
+  }
+  saveData('reagentUsage', reagentUsage);
+  saveData('reagents', reagents);
+
   renderLog();
   renderBatches();
   populateBatchDropdown();
+  renderReagents();
+  renderReagentUsage();
   syncToSheets('experiment', entry);
 
   // Clear form
@@ -1520,6 +1691,8 @@ function logExperiment() {
   document.getElementById('logDrugs').value = '';
   document.getElementById('logDyes').value = '';
   document.getElementById('logNotes').value = '';
+  logReagentItems = [];
+  renderLogReagentList();
 }
 
 function setLogFilter(f) {
@@ -1544,17 +1717,19 @@ function renderLog() {
   }
 
   let html = '';
-  for (const e of filtered) {
+  for (let idx = 0; idx < filtered.length; idx++) {
+    const e = filtered[idx];
     const batch = batches.find(b => b.id === e.batchId);
-    const batchInfo = batch ? `${e.batchId} (${batch.postConc ? batch.postConc.toFixed(1) + ' U/mL' : '?'})` : e.batchId;
+    const postConcStr = (batch && batch.postConc) ? Number(batch.postConc).toFixed(1) + ' U/mL' : '?';
+    const batchInfo = batch ? `${e.batchId} (${postConcStr})` : (e.batchId || '?');
     html += `<div class="log-entry">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <span class="log-date">${fmtDate(e.date)}</span>
-        <button class="remove-btn" onclick="deleteExperiment('${e.id}')" style="font-size:0.7rem; padding:2px 8px;">Delete</button>
+        <button class="remove-btn exp-del-btn" data-idx="${idx}" style="font-size:0.7rem; padding:2px 8px;">Delete</button>
       </div>
       <div class="log-details">
         <strong>${e.name || 'Experiment'}</strong> &mdash; Batch: <strong>${batchInfo}</strong><br>
-        ${e.wells > 0 ? e.wells + ' wells' : ''}${e.wells > 0 && e.devices > 0 ? ' + ' : ''}${e.devices > 0 ? e.devices + ' devices' : ''} &mdash; <strong style="color:var(--green);">${Number(e.volUsed).toFixed(1)} &mu;L BL used</strong> @ ${e.targetConc} U/mL
+        ${e.wells > 0 ? e.wells + ' wells' : ''}${e.wells > 0 && e.devices > 0 ? ' + ' : ''}${e.devices > 0 ? e.devices + ' devices' : ''} &mdash; <strong style="color:var(--green);">${Number(e.volUsed || 0).toFixed(1)} &mu;L BL used</strong> @ ${e.targetConc || '?'} U/mL
         ${e.drugs ? '<br>Drugs: ' + e.drugs : ''}
         ${e.dyes ? '<br>Dyes: ' + e.dyes : ''}
         ${e.notes ? '<br><em>' + e.notes + '</em>' : ''}
@@ -1562,31 +1737,51 @@ function renderLog() {
     </div>`;
   }
   c.innerHTML = html;
+
+  // Attach delete handlers via event delegation (avoids inline onclick issues)
+  c.querySelectorAll('.exp-del-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const i = parseInt(this.dataset.idx);
+      const exp = filtered[i];
+      if (!exp) { alert('Experiment not found at index ' + i); return; }
+      deleteExperimentObj(exp);
+    });
+  });
 }
 
-function deleteExperiment(id) {
+function deleteExperimentObj(exp) {
   try {
-    const exp = experiments.find(e => String(e.id) === String(id));
-    if (!exp) { alert('Experiment not found: ' + id); return; }
-
-    const ok = window.confirm('Delete this experiment entry? The volume (' + Number(exp.volUsed).toFixed(1) + ' µL) will be added back to batch ' + exp.batchId + '.');
+    const vol = Number(exp.volUsed) || 0;
+    const ok = window.confirm('Delete this experiment?\n\n' + (exp.name || 'Experiment') + ' — ' + vol.toFixed(1) + ' µL from ' + exp.batchId + '\n\nVolume will be added back to the batch.');
     if (!ok) return;
 
     // Restore volume to batch
     const batch = batches.find(b => b.id === exp.batchId);
     if (batch) {
-      batch.remainingVol = Math.min(batch.initialVol, batch.remainingVol + Number(exp.volUsed));
+      batch.remainingVol = Math.min(Number(batch.initialVol), Number(batch.remainingVol) + vol);
       if (batch.status === 'archived' && batch.remainingVol > 0) batch.status = 'active';
       saveData('batches', batches);
     }
 
-    experiments = experiments.filter(e => String(e.id) !== String(id));
+    // Remove by matching the exact object reference or by created timestamp
+    const expId = String(exp.id || '');
+    const expCreated = String(exp.created || '');
+    experiments = experiments.filter(e =>
+      !(String(e.id || '') === expId && String(e.created || '') === expCreated)
+    );
     saveData('experiments', experiments);
     renderLog();
     renderBatches();
     populateBatchDropdown();
     syncToSheets('fullSync', null);
   } catch(err) { alert('Error deleting: ' + err.message); }
+}
+
+// Legacy wrapper in case any old onclick handlers reference this
+function deleteExperiment(id) {
+  const exp = experiments.find(e => String(e.id) === String(id));
+  if (exp) deleteExperimentObj(exp);
+  else alert('Experiment not found: ' + id);
 }
 
 function exportCSV() {
@@ -1912,6 +2107,435 @@ function getOrCreateHeaders(sheet, obj) {
   });
 }
 
+/* ====== REAGENT INVENTORY SYSTEM ====== */
+let reagents = loadData('reagents') || [];
+let reagentUsage = loadData('reagentUsage') || [];
+let reagentFilter = 'all';
+let logReagentItems = []; // temp list for current experiment being logged
+
+STORAGE_KEYS.reagents = 'bl_reagents';
+STORAGE_KEYS.reagentUsage = 'bl_reagent_usage';
+STORAGE_KEYS.reagentSheetsUrl = 'bl_reagent_sheets_url';
+
+if (!reagents.length) reagents = loadData('reagents');
+
+function getReagentUrl() { return localStorage.getItem(STORAGE_KEYS.reagentSheetsUrl) || ''; }
+function saveReagentUrl() { localStorage.setItem(STORAGE_KEYS.reagentSheetsUrl, document.getElementById('reagentSheetsUrl').value.trim()); updateReagentSyncUI(); }
+
+function updateReagentSyncUI() {
+  const url = getReagentUrl();
+  const dot = document.getElementById('reagentSyncDot');
+  const status = document.getElementById('reagentSyncStatus');
+  if (url) {
+    dot.className = 'sync-dot connected';
+    status.textContent = 'Reagent sheet connected';
+    document.getElementById('reagentPullBtn').style.display = 'inline-block';
+    document.getElementById('reagentPushBtn').style.display = 'inline-block';
+  } else {
+    dot.className = 'sync-dot disconnected';
+    status.textContent = 'No reagent sheet connected';
+    document.getElementById('reagentPullBtn').style.display = 'none';
+    document.getElementById('reagentPushBtn').style.display = 'none';
+  }
+}
+
+function toggleReagentSettings() {
+  const el = document.getElementById('reagentSettings');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function testReagentConnection() {
+  const url = getReagentUrl();
+  const r = document.getElementById('reagentConnectionResult');
+  if (!url) { r.innerHTML = '<span style="color:var(--red);">No URL entered</span>'; return; }
+  r.innerHTML = '<span style="color:var(--text-dim);">Testing...</span>';
+  try {
+    const data = await gsGet(url + '?action=ping');
+    if (data.status === 'ok') {
+      r.innerHTML = '<span style="color:var(--green);">Connected! Sheet: "' + (data.sheetName || 'unknown') + '"</span>';
+      document.getElementById('reagentSyncDot').className = 'sync-dot connected';
+    } else {
+      r.innerHTML = '<span style="color:var(--yellow);">Unexpected: ' + JSON.stringify(data) + '</span>';
+    }
+  } catch(e) {
+    r.innerHTML = '<span style="color:var(--red);">' + e.message + '</span>';
+  }
+}
+
+async function pullReagents() {
+  const url = getReagentUrl();
+  if (!url) return;
+  document.getElementById('reagentSyncStatus').textContent = 'Pulling reagents...';
+  try {
+    const data = await gsGet(url + '?action=getReagents');
+    if (data.reagents && data.reagents.length) {
+      reagents = data.reagents;
+      // Assign local IDs if missing
+      reagents.forEach((r, i) => { if (!r._id) r._id = 'R-' + i; });
+      saveData('reagents', reagents);
+    }
+    if (data.usage) {
+      reagentUsage = data.usage;
+      saveData('reagentUsage', reagentUsage);
+    }
+    renderReagents();
+    renderReagentUsage();
+    populateReagentDropdown();
+    document.getElementById('reagentSyncStatus').textContent = 'Pulled! ' + new Date().toLocaleTimeString();
+    document.getElementById('reagentSyncDot').className = 'sync-dot connected';
+  } catch(e) {
+    document.getElementById('reagentSyncStatus').textContent = 'Pull failed: ' + e.message;
+    document.getElementById('reagentSyncDot').className = 'sync-dot error';
+  }
+}
+
+async function pushReagents() {
+  const url = getReagentUrl();
+  if (!url) return;
+  document.getElementById('reagentSyncStatus').textContent = 'Pushing reagents...';
+  try {
+    await gsPost(url, { action: 'fullReagentSync', reagents: reagents, usage: reagentUsage });
+    document.getElementById('reagentSyncStatus').textContent = 'Pushed! ' + new Date().toLocaleTimeString();
+    document.getElementById('reagentSyncDot').className = 'sync-dot connected';
+  } catch(e) {
+    document.getElementById('reagentSyncStatus').textContent = 'Push failed: ' + e.message;
+  }
+}
+
+async function updateReagentInSheet(reagent) {
+  const url = getReagentUrl();
+  if (!url) return;
+  try {
+    await gsPost(url, { action: 'updateReagent', data: { Name: reagent.Name, 'Amnt left': reagent['Amnt left'] } });
+  } catch(e) { console.warn('Reagent sheet update failed:', e); }
+}
+
+function setReagentFilter(f) {
+  reagentFilter = f;
+  ['all','inlab','low','order'].forEach(k => document.getElementById('rf' + k.charAt(0).toUpperCase() + k.slice(1)).classList.remove('active'));
+  document.getElementById('rf' + f.charAt(0).toUpperCase() + f.slice(1)).classList.add('active');
+  renderReagents();
+}
+
+function getStatusColor(status) {
+  const s = (status || '').toLowerCase();
+  if (s.includes('received') || s.includes('in lab') || s.includes('already')) return 'var(--green)';
+  if (s.includes('not ordered')) return 'var(--red)';
+  if (s.includes('expired')) return 'var(--yellow)';
+  return 'var(--text-dim)';
+}
+
+function renderReagents() {
+  const c = document.getElementById('reagentTable');
+  const search = (document.getElementById('reagentSearch').value || '').toLowerCase();
+
+  let filtered = reagents;
+  if (reagentFilter === 'inlab') filtered = reagents.filter(r => {
+    const s = (r.Status || '').toLowerCase();
+    return s.includes('in lab') || s.includes('received') || s.includes('already');
+  });
+  else if (reagentFilter === 'low') filtered = reagents.filter(r => {
+    const amt = String(r['Amnt left'] || '');
+    return amt && (amt.includes('low') || amt.includes('0') || amt === '');
+  });
+  else if (reagentFilter === 'order') filtered = reagents.filter(r => (r.Status || '').toLowerCase().includes('not ordered'));
+
+  if (search) filtered = filtered.filter(r =>
+    (r.Name || '').toLowerCase().includes(search) ||
+    (r.Function || '').toLowerCase().includes(search) ||
+    (r.Vendor || '').toLowerCase().includes(search) ||
+    (r['Cat#'] || r.Cat || '').toLowerCase().includes(search)
+  );
+
+  if (!filtered.length) {
+    c.innerHTML = '<em style="color:var(--text-dim);">' + (reagents.length ? 'No reagents match filter.' : 'No reagents loaded. Pull from your sheet or add manually.') + '</em>';
+    return;
+  }
+
+  let html = '<table class="batch-table"><thead><tr><th>Name</th><th>Status</th><th>Amnt Left</th><th>Vendor</th><th>Cat #</th><th>Actions</th></tr></thead><tbody>';
+  for (let i = 0; i < filtered.length; i++) {
+    const r = filtered[i];
+    const statusCol = getStatusColor(r.Status);
+    const catNum = r['Cat#'] || r.Cat || r['Cat #'] || '';
+    html += `<tr>
+      <td><strong style="color:#fff;">${r.Name || '?'}</strong>${r.Function ? '<br><span style="font-size:0.72rem;color:var(--text-dim);font-family:inherit;">' + r.Function + '</span>' : ''}</td>
+      <td><span style="color:${statusCol};">${r.Status || '—'}</span></td>
+      <td style="font-weight:600;">${r['Amnt left'] || '—'}</td>
+      <td style="font-size:0.78rem;">${r.Vendor || ''}</td>
+      <td style="font-size:0.78rem;">${catNum}</td>
+      <td><button class="toggle-btn reagent-adj-btn" data-ridx="${reagents.indexOf(r)}" style="padding:2px 8px; font-size:0.72rem;">Adjust</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  c.innerHTML = html;
+
+  // Attach adjust handlers
+  c.querySelectorAll('.reagent-adj-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const idx = parseInt(this.dataset.ridx);
+      adjustReagent(idx);
+    });
+  });
+}
+
+function adjustReagent(idx) {
+  const r = reagents[idx];
+  if (!r) return;
+  const input = prompt('Reagent: ' + r.Name + '\nCurrent amount: ' + (r['Amnt left'] || '(not set)') + '\n\nEnter new value for "Amnt left":\n(You can type anything — e.g. "8 mM × 0.5 mL left", "450 µL", etc.)', r['Amnt left'] || '');
+  if (input === null) return;
+  const oldAmt = r['Amnt left'];
+  r['Amnt left'] = input.trim();
+  saveData('reagents', reagents);
+  renderReagents();
+  populateReagentDropdown();
+
+  // Log the adjustment
+  reagentUsage.unshift({
+    date: new Date().toISOString().slice(0,10),
+    reagent: r.Name,
+    action: 'adjustment',
+    from: oldAmt,
+    to: input.trim(),
+    note: 'Manual adjustment',
+    created: new Date().toISOString()
+  });
+  saveData('reagentUsage', reagentUsage);
+  renderReagentUsage();
+  updateReagentInSheet(r);
+}
+
+function addReagentManual() {
+  const name = document.getElementById('newReagentName').value.trim();
+  if (!name) return alert('Enter a reagent name');
+  const r = {
+    _id: 'R-' + Date.now(),
+    Name: name,
+    Status: document.getElementById('newReagentStatus').value,
+    'Amnt left': document.getElementById('newReagentAmt').value.trim(),
+    Vendor: document.getElementById('newReagentVendor').value.trim(),
+    'Cat#': document.getElementById('newReagentCat').value.trim(),
+    Unit: document.getElementById('newReagentUnit').value.trim(),
+    Function: document.getElementById('newReagentFunc').value.trim()
+  };
+  reagents.push(r);
+  saveData('reagents', reagents);
+  renderReagents();
+  populateReagentDropdown();
+  // Clear form
+  ['newReagentName','newReagentAmt','newReagentVendor','newReagentCat','newReagentUnit','newReagentFunc'].forEach(id => document.getElementById(id).value = '');
+}
+
+function renderReagentUsage() {
+  const c = document.getElementById('reagentUsageLog');
+  if (!reagentUsage.length) { c.innerHTML = '<em style="color:var(--text-dim);">No reagent usage logged yet.</em>'; return; }
+  let html = '';
+  for (const u of reagentUsage.slice(0, 30)) {
+    const icon = u.action === 'adjustment' ? '&#9998;' : '&#128200;';
+    const detail = u.action === 'adjustment'
+      ? `Adjusted from "${u.from || '?'}" to "${u.to || '?'}"`
+      : `Used ${u.amount || '?'} ${u.unit || ''} (Exp: ${u.experiment || '?'})`;
+    html += `<div style="padding:6px 0; border-bottom:1px solid var(--border); font-size:0.82rem;">
+      <span style="color:var(--text-dim);">${fmtDate(u.date)}</span> ${icon} <strong style="color:#fff;">${u.reagent}</strong> &mdash; <span style="color:var(--text-dim);">${detail}</span>
+      ${u.note ? '<span style="color:var(--text-dim); font-style:italic;"> — ' + u.note + '</span>' : ''}
+    </div>`;
+  }
+  if (reagentUsage.length > 30) html += '<div style="font-size:0.78rem; color:var(--text-dim); padding-top:6px;">...and ' + (reagentUsage.length - 30) + ' more</div>';
+  c.innerHTML = html;
+}
+
+/* ====== REAGENT DROPDOWN IN EXPERIMENT LOG ====== */
+function populateReagentDropdown() {
+  const sel = document.getElementById('logReagentSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- Select from inventory --</option>';
+  const inLab = reagents.filter(r => {
+    const s = (r.Status || '').toLowerCase();
+    return s.includes('in lab') || s.includes('received') || s.includes('already');
+  });
+  for (const r of inLab) {
+    const opt = document.createElement('option');
+    opt.value = r.Name;
+    opt.textContent = r.Name + (r['Amnt left'] ? ' (' + r['Amnt left'] + ')' : '');
+    sel.appendChild(opt);
+  }
+  // Also add a "Other" option for reagents not in sheet
+  const otherOpt = document.createElement('option');
+  otherOpt.value = '__other__';
+  otherOpt.textContent = 'Other (type name)';
+  sel.appendChild(otherOpt);
+  if (current) sel.value = current;
+}
+
+function addReagentToLog() {
+  let name = document.getElementById('logReagentSelect').value;
+  if (!name) return alert('Select a reagent');
+  if (name === '__other__') {
+    name = prompt('Enter reagent name:');
+    if (!name) return;
+  }
+  const amt = getVal('logReagentAmt');
+  const unit = document.getElementById('logReagentUnit').value;
+  if (!amt || amt <= 0) return alert('Enter amount used');
+
+  logReagentItems.push({ name, amount: amt, unit });
+  renderLogReagentList();
+  document.getElementById('logReagentAmt').value = '';
+}
+
+function removeLogReagent(idx) {
+  logReagentItems.splice(idx, 1);
+  renderLogReagentList();
+}
+
+function renderLogReagentList() {
+  const c = document.getElementById('logReagentList');
+  if (!logReagentItems.length) { c.innerHTML = ''; return; }
+  let html = '';
+  for (let i = 0; i < logReagentItems.length; i++) {
+    const r = logReagentItems[i];
+    html += `<div style="display:inline-flex; align-items:center; gap:6px; background:var(--card-alt); border:1px solid var(--border); border-radius:6px; padding:4px 10px; margin:2px 4px 2px 0; font-size:0.8rem;">
+      <span>${r.name}: <strong>${r.amount} ${r.unit}</strong></span>
+      <button onclick="removeLogReagent(${i})" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:0.9rem; padding:0 4px;">&times;</button>
+    </div>`;
+  }
+  c.innerHTML = html;
+}
+
+/* ====== REAGENT APPS SCRIPT ====== */
+function copyReagentScript() {
+  const script = `// Reagent Inventory Tracker - Google Apps Script
+// Paste this into Extensions > Apps Script in your REAGENT Google Sheet
+// Deploy as Web App (Execute as: Me, Access: Anyone)
+
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) || 'ping';
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (action === 'ping') {
+    return jsonResponse({ status: 'ok', sheetName: ss.getName() });
+  }
+
+  if (action === 'getReagents') {
+    var mainSheet = ss.getSheets()[0]; // First sheet = reagent list
+    var reagents = sheetToJson(mainSheet);
+    var usageSheet = ss.getSheetByName('Usage Log');
+    var usage = usageSheet ? sheetToJson(usageSheet) : [];
+    return jsonResponse({ reagents: reagents, usage: usage });
+  }
+
+  return jsonResponse({ status: 'unknown action' });
+}
+
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var body = JSON.parse(e.postData.contents);
+  var action = body.action;
+
+  if (action === 'updateReagent') {
+    // Update "Amnt left" for a specific reagent by Name
+    var mainSheet = ss.getSheets()[0];
+    var data = mainSheet.getDataRange().getValues();
+    var headers = data[0];
+    var nameIdx = headers.indexOf('Name');
+    var amtIdx = -1;
+    for (var h = 0; h < headers.length; h++) {
+      if (String(headers[h]).toLowerCase().replace(/\\s/g,'') === 'amntleft' ||
+          String(headers[h]).toLowerCase().includes('amnt') ||
+          String(headers[h]).toLowerCase().includes('amount left')) {
+        amtIdx = h; break;
+      }
+    }
+    if (nameIdx === -1 || amtIdx === -1) return jsonResponse({ status: 'error', msg: 'Name or Amnt left column not found' });
+    var targetName = body.data.Name;
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][nameIdx] == targetName) {
+        mainSheet.getRange(i + 1, amtIdx + 1).setValue(body.data['Amnt left']);
+        return jsonResponse({ status: 'ok', updated: targetName });
+      }
+    }
+    return jsonResponse({ status: 'not found', name: targetName });
+  }
+
+  if (action === 'logUsage') {
+    var usageSheet = ss.getSheetByName('Usage Log');
+    if (!usageSheet) {
+      usageSheet = ss.insertSheet('Usage Log');
+      usageSheet.appendRow(['Date', 'Reagent', 'Action', 'Amount', 'Unit', 'Experiment', 'Note']);
+    }
+    var d = body.data;
+    usageSheet.appendRow([d.date, d.reagent, d.action || 'used', d.amount || '', d.unit || '', d.experiment || '', d.note || '']);
+    return jsonResponse({ status: 'ok' });
+  }
+
+  if (action === 'fullReagentSync') {
+    // Update main sheet with reagent data
+    var mainSheet = ss.getSheets()[0];
+    var data = mainSheet.getDataRange().getValues();
+    var headers = data[0];
+    var nameIdx = headers.indexOf('Name');
+    var amtIdx = -1;
+    for (var h = 0; h < headers.length; h++) {
+      if (String(headers[h]).toLowerCase().replace(/\\s/g,'') === 'amntleft' ||
+          String(headers[h]).toLowerCase().includes('amnt') ||
+          String(headers[h]).toLowerCase().includes('amount left')) {
+        amtIdx = h; break;
+      }
+    }
+    if (nameIdx !== -1 && amtIdx !== -1 && body.reagents) {
+      for (var i = 1; i < data.length; i++) {
+        var rowName = data[i][nameIdx];
+        var match = body.reagents.find(function(r) { return r.Name == rowName; });
+        if (match && match['Amnt left'] !== undefined) {
+          mainSheet.getRange(i + 1, amtIdx + 1).setValue(match['Amnt left']);
+        }
+      }
+    }
+    return jsonResponse({ status: 'ok' });
+  }
+
+  return jsonResponse({ status: 'unknown action' });
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function sheetToJson(sheet) {
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var headers = data[0];
+  var result = [];
+  for (var i = 1; i < data.length; i++) {
+    if (!data[i][0] && !data[i][1] && !data[i][2]) continue; // skip empty rows
+    var obj = {};
+    headers.forEach(function(h, j) {
+      var val = data[i][j];
+      if (val instanceof Date) val = val.toISOString().slice(0,10);
+      obj[String(h).trim()] = val;
+    });
+    result.push(obj);
+  }
+  return result;
+}`;
+
+  navigator.clipboard.writeText(script).then(() => {
+    const c = document.getElementById('reagentCopyConfirm');
+    c.style.display = 'inline';
+    setTimeout(() => c.style.display = 'none', 3000);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = script;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const c = document.getElementById('reagentCopyConfirm');
+    c.style.display = 'inline';
+    setTimeout(() => c.style.display = 'none', 3000);
+  });
+}
+
 /* ====== INIT ====== */
 // Set default dates
 document.getElementById('batchDate').valueAsDate = new Date();
@@ -1921,6 +2545,11 @@ document.getElementById('logDate').valueAsDate = new Date();
 const savedUrl = getSheetsUrl();
 if (savedUrl) document.getElementById('sheetsUrl').value = savedUrl;
 updateSyncUI();
+
+// Restore reagent sheets URL
+const savedReagentUrl = getReagentUrl();
+if (savedReagentUrl) document.getElementById('reagentSheetsUrl').value = savedReagentUrl;
+updateReagentSyncUI();
 
 // Watch batchDF/batchStockConc to auto-calc postConc
 ['batchDF', 'batchStockConc'].forEach(id => {
@@ -1935,6 +2564,9 @@ recalcPlan(); recalcAll();
 renderBatches();
 renderLog();
 populateBatchDropdown();
+renderReagents();
+renderReagentUsage();
+populateReagentDropdown();
 </script>
 </body>
 </html>
